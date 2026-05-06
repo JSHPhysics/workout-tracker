@@ -234,6 +234,66 @@ its own chunk loaded on demand from `/routines`.
 
 ---
 
+## 2026-05-06 — Per-profile themes (Hayley gets her own palette)
+
+**Context.** Single-accent profile theming was the ceiling of what
+"profile-as-accent" could do — Hayley's coral on a cream substrate
+still looked like Joshua's app. Owner asked for a distinct theme for
+Hayley anchored on **pale pink + light charcoal**.
+
+**Decision.** Promote the colour system from a single `--accent`
+variable to a full set of semantic tokens — `bg`, `surface`,
+`surface-soft`, `surface-elevated`, `line`, `line-strong`, `fg`,
+`fg-soft`, `fg-muted`, `fg-faint`, `accent`, `accent-fg`. They live
+as CSS variables in `src/index.css`, exposed through Tailwind as
+real colour utilities (`bg-bg`, `text-fg`, `border-line`, etc.).
+
+The cascade is:
+```
+:root                              -> Joshua / no-profile, light
+html.dark                          -> Joshua / no-profile, dark
+html[data-profile="hayley"]        -> Hayley, light
+html.dark[data-profile="hayley"]   -> Hayley, dark
+```
+
+`[data-profile]` is set by `useActiveProfile.setActiveProfileId` (no
+React state involved — the attribute toggle is the source of truth).
+
+### Hayley's palette
+
+The two anchors swap roles between modes:
+
+- **Light:** pale pink surfaces (`#fbe9ed` page, `#fffafb` cards), warm
+  light-charcoal text (`#3c3236`), deep-rose accent (`#c52f63`) for CTAs
+  / active states.
+- **Dark:** warm light-charcoal surfaces (`#2c2628` page, `#383032`
+  cards), pale-pink text (`#f8dce2`), brighter pink accent (`#f6a7b2`)
+  with charcoal `accent-fg` so pink CTAs read crisply.
+
+Joshua's palette is the same warm cream we already shipped, just
+re-expressed through the semantic tokens.
+
+**Alternatives.**
+- Keep one global cream palette and just swap accent colour per
+  profile. Cheap, but the result felt like wearing the same outfit
+  with a different brooch — Hayley's experience didn't read as hers.
+- Two separate Tailwind themes (one per profile) compiled separately.
+  Heavier; CSS variables give the same outcome with one bundle.
+
+**Consequences.**
+- All component code now goes through semantic utilities. Adding a
+  third profile is a single CSS block; no component changes required.
+- Charts (Recharts, milestone 8) will need to read `--accent` and
+  `--fg` for axis / gridlines so they participate in the same theming.
+- The static `bg-profile-josh` / `bg-profile-hayley` chip colours stay
+  raw hex (sap green / warm coral) — that's the stable, recognisable
+  identity in the picker, distinct from the dynamic accent.
+- The `cream-{50..950}` primitive scale stays in Tailwind for fallback
+  cases (e.g. the no-profile fallback dot) and any future need for a
+  literal cream tone, but components shouldn't reach for it directly.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

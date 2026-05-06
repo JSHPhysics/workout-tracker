@@ -23,11 +23,11 @@ export function RoutineDetail() {
       <section className="mx-auto flex max-w-md flex-col gap-6">
         <div
           aria-hidden
-          className="h-8 w-1/3 animate-pulse rounded bg-cream-100 dark:bg-cream-900"
+          className="h-8 w-1/3 animate-pulse rounded bg-surface-soft"
         />
         <div
           aria-hidden
-          className="h-32 animate-pulse rounded-2xl bg-cream-100 dark:bg-cream-900"
+          className="h-32 animate-pulse rounded-2xl bg-surface-soft"
         />
       </section>
     );
@@ -41,7 +41,7 @@ export function RoutineDetail() {
       <header className="flex flex-col gap-2">
         <Link
           to="/routines"
-          className="self-start text-[0.7rem] uppercase tracking-[0.2em] text-cream-500 hover:text-accent dark:text-cream-400"
+          className="self-start text-[0.7rem] uppercase tracking-[0.2em] text-fg-muted hover:text-accent"
         >
           ← Routines
         </Link>
@@ -53,7 +53,7 @@ export function RoutineDetail() {
         <h1 className="font-display text-3xl font-light leading-[1.1] tracking-tight">
           {routine.name}
         </h1>
-        <p className="text-sm leading-relaxed text-cream-600 dark:text-cream-400">
+        <p className="text-sm leading-relaxed text-fg-muted">
           {routine.description}
         </p>
       </header>
@@ -95,7 +95,7 @@ function WeekSwitcher({ weeks, active, onChange }: WeekSwitcherProps) {
               'min-h-[36px] shrink-0 rounded-full border px-3 text-xs font-medium tracking-wide transition',
               isActive
                 ? 'border-transparent bg-accent text-accent-fg'
-                : 'border-cream-200 bg-white text-cream-700 hover:border-cream-300 dark:border-cream-800 dark:bg-cream-900 dark:text-cream-200 dark:hover:border-cream-700',
+                : 'border-line bg-surface text-fg-soft hover:border-line-strong',
             ].join(' ')}
           >
             Week {w.weekNumber}
@@ -130,31 +130,29 @@ function DayCard({ day, exerciseMap }: DayCardProps) {
   const dayLabel = `Day ${day.dayNumber}`;
   if (day.kind === 'rest') {
     return (
-      <article className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 px-5 py-4 dark:border-cream-800 dark:bg-cream-950/50">
+      <article className="rounded-2xl border border-dashed border-line bg-bg/40 px-5 py-4">
         <div className="flex items-center justify-between">
-          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-cream-500 dark:text-cream-400">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
             {dayLabel}
           </span>
-          <span className="font-display text-sm italic text-cream-500 dark:text-cream-400">
-            Rest
-          </span>
+          <span className="font-display text-sm italic text-fg-muted">Rest</span>
         </div>
       </article>
     );
   }
 
   return (
-    <article className="rounded-2xl border border-cream-200 bg-white p-5 shadow-soft dark:border-cream-800 dark:bg-cream-900 dark:shadow-none">
+    <article className="rounded-2xl border border-line bg-surface p-5 shadow-soft">
       <div className="flex items-baseline justify-between">
         <div className="flex flex-col">
-          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-cream-500 dark:text-cream-400">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
             {dayLabel}
           </span>
           <h3 className="font-display text-lg font-medium tracking-tight">
             Workout {day.workoutLabel}
           </h3>
         </div>
-        <span className="text-xs text-cream-500 dark:text-cream-400">
+        <span className="text-xs text-fg-muted">
           {day.blocks.length} block{day.blocks.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -195,7 +193,7 @@ function BlockRow({ block, exerciseMap, supersetLetter }: BlockRowProps) {
         'rounded-xl border px-4 py-3',
         block.type === 'superset'
           ? 'border-accent/30 bg-accent-soft'
-          : 'border-cream-200 bg-cream-50 dark:border-cream-800 dark:bg-cream-950/40',
+          : 'border-line bg-surface-soft/60',
       ].join(' ')}
     >
       {block.type === 'superset' && (
@@ -234,13 +232,11 @@ function PlannedRow({ planned, exercise, supersetMarker }: PlannedRowProps) {
             {supersetMarker}
           </span>
         )}
-        <span className="text-sm font-medium leading-snug text-cream-900 dark:text-cream-50">
-          {name}
-        </span>
+        <span className="text-sm font-medium leading-snug text-fg">{name}</span>
       </div>
       <span
         className={[
-          'text-xs tabular-nums text-cream-600 dark:text-cream-400',
+          'text-xs tabular-nums text-fg-muted',
           supersetMarker ? 'pl-6' : '',
         ].join(' ')}
       >

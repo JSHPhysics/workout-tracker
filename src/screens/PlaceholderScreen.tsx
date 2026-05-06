@@ -17,11 +17,11 @@ export function PlaceholderScreen({ title, description, eyebrow }: Props) {
         <h1 className="font-display text-4xl font-light leading-[1.05] tracking-tight">
           {title}
         </h1>
-        <p className="text-sm text-cream-600 dark:text-cream-400">{description}</p>
+        <p className="text-sm text-fg-muted">{description}</p>
       </header>
-      <div className="rounded-2xl border border-dashed border-cream-300 bg-cream-100/50 p-8 text-center text-sm text-cream-500 dark:border-cream-700 dark:bg-cream-900/40 dark:text-cream-400">
+      <div className="rounded-2xl border border-dashed border-line-strong bg-surface-soft/50 p-8 text-center text-sm text-fg-muted">
         <span className="font-display italic">Soon.</span>
-        <span className="mx-2 text-cream-400 dark:text-cream-600">·</span>
+        <span className="mx-2 text-fg-faint">·</span>
         Wires in a later milestone.
       </div>
     </section>

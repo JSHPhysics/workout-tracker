@@ -28,8 +28,35 @@ module.exports = {
         ],
       },
       colors: {
-        // Warm-neutral surface palette. Replaces our earlier slate (cool
-        // blue) for a more editorial feel; cards lift, backgrounds breathe.
+        // Semantic tokens read CSS variables defined in src/index.css.
+        // The active (theme × profile) picks the values, so a single set
+        // of utilities (`bg-bg`, `text-fg`, `border-line`, etc.) follows
+        // whichever palette is live.
+        bg: 'rgb(var(--bg) / <alpha-value>)',
+        surface: {
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          soft: 'rgb(var(--surface-soft) / <alpha-value>)',
+          elevated: 'rgb(var(--surface-elevated) / <alpha-value>)',
+        },
+        line: {
+          DEFAULT: 'rgb(var(--line) / <alpha-value>)',
+          strong: 'rgb(var(--line-strong) / <alpha-value>)',
+        },
+        fg: {
+          DEFAULT: 'rgb(var(--fg) / <alpha-value>)',
+          soft: 'rgb(var(--fg-soft) / <alpha-value>)',
+          muted: 'rgb(var(--fg-muted) / <alpha-value>)',
+          faint: 'rgb(var(--fg-faint) / <alpha-value>)',
+        },
+        accent: {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          fg: 'rgb(var(--accent-fg) / <alpha-value>)',
+          soft: 'rgb(var(--accent) / 0.12)',
+        },
+        // Warm-neutral primitive palette — kept for non-themed callers
+        // (e.g. the legacy fallback profile dot) and for any place we
+        // genuinely want a literal cream tone rather than the semantic
+        // surface.
         cream: {
           50: '#faf8f3',
           100: '#f4f0e6',
@@ -43,15 +70,7 @@ module.exports = {
           900: '#161311',
           950: '#0c0a08',
         },
-        // CSS variables let the active profile theme the whole app — see
-        // src/index.css. `bg-accent` resolves to whatever the active
-        // profile picked; `accent-fg` is the readable foreground for it.
-        accent: {
-          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
-          fg: 'rgb(var(--accent-fg) / <alpha-value>)',
-          soft: 'rgb(var(--accent) / 0.12)',
-        },
-        // Static profile chips for the picker (where the accent isn't yet
+        // Static profile chips for the picker (where no profile is yet
         // bound — we don't want both cards painted in the same colour).
         profile: {
           josh: '#22c55e', // sap green

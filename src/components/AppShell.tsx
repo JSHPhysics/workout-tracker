@@ -18,29 +18,25 @@ export function AppShell() {
     return <Navigate to="/" replace />;
   }
 
-  // Still loading from Dexie — keep the chrome but soften the profile chip.
   if (profile === undefined) {
-    return (
-      <div className="flex min-h-full flex-col bg-cream-50 dark:bg-cream-950" />
-    );
+    return <div className="flex min-h-full flex-col bg-bg" />;
   }
 
   if (profile === null) {
-    // Stale id (e.g. profile deleted from another tab) — boot back.
     setActiveProfileId(null);
     return <Navigate to="/" replace />;
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-cream-50 text-cream-900 dark:bg-cream-950 dark:text-cream-100">
+    <div className="flex min-h-full flex-col bg-bg text-fg">
       <header
-        className="sticky top-0 z-10 flex items-center justify-between border-b border-cream-200/70 bg-cream-50/80 px-5 py-3 backdrop-blur dark:border-cream-800/70 dark:bg-cream-950/80"
+        className="sticky top-0 z-10 flex items-center justify-between border-b border-line/70 bg-bg/80 px-5 py-3 backdrop-blur"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
       >
         <button
           type="button"
           onClick={() => setActiveProfileId(null)}
-          className="-mx-2 flex min-h-[48px] items-center gap-2.5 rounded-xl px-2 transition hover:bg-cream-100 dark:hover:bg-cream-900"
+          className="-mx-2 flex min-h-[48px] items-center gap-2.5 rounded-xl px-2 transition hover:bg-surface-soft"
           aria-label={`Switch profile (current: ${profile.name})`}
         >
           <span

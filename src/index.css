@@ -1,5 +1,4 @@
-/* Variable fonts — bundled, no network at runtime. Pulled in once here
-   so they're available everywhere via tailwind's font-sans/font-display. */
+/* Variable fonts — bundled, no network at runtime. */
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/fraunces';
 
@@ -7,23 +6,94 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Theme tokens --------------------------------------------------------
+ *
+ * Semantic tokens (bg / surface / line / fg / accent) are bound to CSS
+ * variables and re-defined per (theme × profile). Tailwind colours read
+ * these vars (see tailwind.config.cjs), so a single set of utilities
+ * (`bg-bg`, `text-fg`, `border-line`, etc.) follows the active scheme.
+ *
+ * Cascade:
+ *   :root                                  -> Joshua / no-profile, light
+ *   html.dark                              -> Joshua / no-profile, dark
+ *   html[data-profile="hayley"]            -> Hayley, light
+ *   html.dark[data-profile="hayley"]       -> Hayley, dark
+ *
+ * Hayley's palette inverts the pale-pink / light-charcoal pair across
+ * modes: pale-pink surfaces with charcoal text in light mode, charcoal
+ * surfaces with pale-pink text in dark.
+ */
+
 @layer base {
-  /* Default accent (used before a profile is picked, e.g. on the picker
-     itself): a neutral champagne. Profiles override via [data-profile]. */
+  /* === Joshua / default — light ======================================= */
   :root {
-    --accent: 184 173 142;
+    --bg: 250 248 243;             /* cream-50 */
+    --surface: 255 255 255;
+    --surface-soft: 244 240 230;   /* cream-100 */
+    --surface-elevated: 232 226 209; /* cream-200 */
+    --line: 232 226 209;           /* cream-200 */
+    --line-strong: 214 205 180;    /* cream-300 */
+    --fg: 22 19 17;                /* cream-900 */
+    --fg-soft: 61 57 51;           /* cream-700 */
+    --fg-muted: 94 88 79;          /* cream-600 */
+    --fg-faint: 138 131 119;       /* cream-500 */
+    --accent: 184 173 142;         /* champagne placeholder */
     --accent-fg: 12 10 8;
   }
 
-  [data-profile='joshua'] {
-    --accent: 34 197 94; /* sap green */
+  /* === Joshua / default — dark ======================================== */
+  html.dark {
+    --bg: 12 10 8;                 /* cream-950 */
+    --surface: 22 19 17;           /* cream-900 */
+    --surface-soft: 22 19 17;      /* cream-900 (nest by border, not tone) */
+    --surface-elevated: 38 35 31;  /* cream-800 */
+    --line: 38 35 31;              /* cream-800 */
+    --line-strong: 61 57 51;       /* cream-700 */
+    --fg: 250 248 243;             /* cream-50 */
+    --fg-soft: 232 226 209;        /* cream-200 */
+    --fg-muted: 184 173 142;       /* cream-400 */
+    --fg-faint: 94 88 79;          /* cream-600 */
+  }
+
+  /* === Joshua accent (works in both modes) ============================ */
+  html[data-profile='joshua'] {
+    --accent: 34 197 94;           /* sap green */
     --accent-fg: 12 10 8;
   }
 
-  [data-profile='hayley'] {
-    --accent: 251 113 133; /* warm coral */
-    --accent-fg: 22 19 17;
+  /* === Hayley — light (pale pink surfaces, light-charcoal text) ======= */
+  html[data-profile='hayley'] {
+    --bg: 251 233 237;             /* #fbe9ed pale pink */
+    --surface: 255 250 251;        /* #fffafb whisper-pink white */
+    --surface-soft: 247 220 226;   /* #f7dce2 */
+    --surface-elevated: 240 205 213; /* #f0cdd5 */
+    --line: 240 215 222;           /* #f0d7de */
+    --line-strong: 230 195 205;    /* #e6c3cd */
+    --fg: 60 50 54;                /* #3c3236 warm light charcoal */
+    --fg-soft: 88 76 80;           /* #584c50 */
+    --fg-muted: 130 110 117;       /* #826e75 */
+    --fg-faint: 180 155 162;       /* #b49ba2 */
+    --accent: 197 47 99;           /* #c52f63 deeper rose */
+    --accent-fg: 255 255 255;
   }
+
+  /* === Hayley — dark (light-charcoal surfaces, pale-pink text) ======== */
+  html.dark[data-profile='hayley'] {
+    --bg: 44 38 40;                /* #2c2628 warm charcoal */
+    --surface: 56 48 50;           /* #383032 */
+    --surface-soft: 50 42 45;      /* #322a2d */
+    --surface-elevated: 70 60 64;  /* #463c40 */
+    --line: 70 60 64;              /* #463c40 */
+    --line-strong: 88 76 80;       /* #584c50 */
+    --fg: 248 220 226;             /* #f8dce2 pale pink */
+    --fg-soft: 232 200 208;        /* #e8c8d0 */
+    --fg-muted: 180 150 160;       /* #b496a0 */
+    --fg-faint: 130 105 115;       /* #826973 */
+    --accent: 246 167 178;         /* #f6a7b2 brighter pink for dark contrast */
+    --accent-fg: 44 38 40;         /* charcoal text on pink */
+  }
+
+  /* --- Globals ---------------------------------------------------------- */
 
   html,
   body,
@@ -32,7 +102,6 @@
   }
 
   html {
-    /* Crisper UI defaults for variable fonts. */
     font-feature-settings: 'cv11', 'ss01', 'ss03';
     font-optical-sizing: auto;
   }
@@ -40,17 +109,15 @@
   body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    @apply bg-cream-50 font-sans text-cream-900 dark:bg-cream-950 dark:text-cream-100;
+    @apply bg-bg font-sans text-fg;
   }
 
-  /* Display elements lean on Fraunces' optical-sizing axis. */
   h1,
   h2,
   h3 {
     font-optical-sizing: auto;
   }
 
-  /* Honour reduced-motion preferences globally. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -62,7 +129,6 @@
     }
   }
 
-  /* Selection picks up the active profile's accent. */
   ::selection {
     background: rgb(var(--accent) / 0.35);
     color: rgb(var(--accent-fg));

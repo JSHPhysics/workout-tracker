@@ -17,7 +17,7 @@ const TABS: readonly TabItem[] = [
 export function TabBar() {
   return (
     <nav
-      className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-cream-200/70 bg-cream-50/85 backdrop-blur dark:border-cream-800/70 dark:bg-cream-950/85"
+      className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-line/70 bg-bg/85 backdrop-blur"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Primary"
     >
@@ -28,9 +28,7 @@ export function TabBar() {
           className={({ isActive }) =>
             [
               'group relative flex min-h-[52px] flex-col items-center justify-center gap-1 px-1 py-2 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition',
-              isActive
-                ? 'text-accent'
-                : 'text-cream-500 hover:text-cream-800 dark:text-cream-400 dark:hover:text-cream-100',
+              isActive ? 'text-accent' : 'text-fg-muted hover:text-fg',
             ].join(' ')
           }
         >
