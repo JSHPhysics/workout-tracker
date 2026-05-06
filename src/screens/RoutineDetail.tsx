@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useRoutine } from '../db/routines';
 import { useExerciseMap } from '../db/exercises';
+import { createSession } from '../db/sessions';
+import { useActiveProfile } from '../state/activeProfile';
 import type {
   Block,
   DayTemplate,
   Exercise,
   PlannedExercise,
+  RoutineTemplate,
   WeekTemplate,
 } from '../types';
 
@@ -64,7 +67,13 @@ export function RoutineDetail() {
         onChange={setActiveWeek}
       />
 
-      {week && <WeekView week={week} exerciseMap={exerciseMap} />}
+      {week && (
+        <WeekView
+          routine={routine}
+          week={week}
+          exerciseMap={exerciseMap}
+        />
+      )}
     </section>
   );
 }
@@ -107,26 +116,58 @@ function WeekSwitcher({ weeks, active, onChange }: WeekSwitcherProps) {
 }
 
 interface WeekViewProps {
+  routine: RoutineTemplate;
   week: WeekTemplate;
   exerciseMap: Map<string, Exercise>;
 }
 
-function WeekView({ week, exerciseMap }: WeekViewProps) {
+function WeekView({ routine, week, exerciseMap }: WeekViewProps) {
   return (
     <div className="flex flex-col gap-3">
       {week.days.map((day) => (
-        <DayCard key={day.dayNumber} day={day} exerciseMap={exerciseMap} />
+        <DayCard
+          key={day.dayNumber}
+          routine={routine}
+          week={week}
+          day={day}
+          exerciseMap={exerciseMap}
+        />
       ))}
     </div>
   );
 }
 
 interface DayCardProps {
+  routine: RoutineTemplate;
+  week: WeekTemplate;
   day: DayTemplate;
   exerciseMap: Map<string, Exercise>;
 }
 
-function DayCard({ day, exerciseMap }: DayCardProps) {
+function DayCard({ routine, week, day, exerciseMap }: DayCardProps) {
+  const navigate = useNavigate();
+  const activeProfileId = useActiveProfile((s) => s.activeProfileId);
+  const [starting, setStarting] = useState(false);
+
+  const start = async () => {
+    if (!activeProfileId || starting || day.kind !== 'workout') return;
+    setStarting(true);
+    try {
+      const id = await createSession({
+        profileId: activeProfileId,
+        templateRef: {
+          routineId: routine.id,
+          weekNumber: week.weekNumber,
+          dayNumber: day.dayNumber,
+        },
+        planName: `${routine.name} · W${week.weekNumber} D${day.dayNumber}${day.workoutLabel ? ` · Workout ${day.workoutLabel}` : ''}`,
+      });
+      navigate(`/session/${id}`);
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const dayLabel = `Day ${day.dayNumber}`;
   if (day.kind === 'rest') {
     return (
@@ -143,7 +184,7 @@ function DayCard({ day, exerciseMap }: DayCardProps) {
 
   return (
     <article className="rounded-2xl border border-line bg-surface p-5 shadow-soft">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col">
           <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
             {dayLabel}
@@ -151,10 +192,18 @@ function DayCard({ day, exerciseMap }: DayCardProps) {
           <h3 className="font-display text-lg font-medium tracking-tight">
             Workout {day.workoutLabel}
           </h3>
+          <span className="text-xs text-fg-muted">
+            {day.blocks.length} block{day.blocks.length === 1 ? '' : 's'}
+          </span>
         </div>
-        <span className="text-xs text-fg-muted">
-          {day.blocks.length} block{day.blocks.length === 1 ? '' : 's'}
-        </span>
+        <button
+          type="button"
+          onClick={start}
+          disabled={starting || !activeProfileId}
+          className="flex min-h-[36px] items-center justify-center rounded-full bg-accent px-4 text-xs font-medium uppercase tracking-[0.12em] text-accent-fg transition hover:opacity-90 disabled:opacity-50"
+        >
+          {starting ? '…' : 'Start'}
+        </button>
       </div>
       <ol className="mt-4 flex flex-col gap-3">
         {(() => {

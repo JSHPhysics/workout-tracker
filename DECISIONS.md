@@ -294,6 +294,88 @@ re-expressed through the semantic tokens.
 
 ---
 
+## 2026-05-06 — Milestone 3: Workout session core
+
+**Context.** Acceptance was "complete a Workout A end-to-end and see it
+dated in History." Out of scope for the milestone (per SCOPE.md §10):
+mid-workout edits, rest timer, plate calc, PR celebration, RPE, notes.
+Set type defaults to `working` and isn't user-changeable yet.
+
+### Flow
+
+```
+Today  ──────────────────────────╮
+  └─ Pick a routine              │ (resume card if open session)
+                                 ▼
+RoutineDetail  ──── Start ───── creates Session, nav /session/:id
+                                 │
+                                 ▼
+Session screen  ── tick sets ── persisted as SetLogs (live via Dexie)
+  ├─ Discard      → drops Session + all SetLogs (confirm)
+  └─ Finish       → sets completedAt, nav /history
+                                 │
+                                 ▼
+History  ── click row ── /session/:id (read-only completed view)
+```
+
+### State strategy
+
+Per CLAUDE.md, Zustand is reserved for ephemeral UI ("the active
+timer, the set being entered right now"). The active session is *not*
+in Zustand — it's just whatever Session row in Dexie has
+`completedAt: null`. `useActiveSession(profileId)` resolves it; Today
+and the Discard guard both use it. This keeps the source of truth in
+one place and makes the resume affordance trivially correct across
+tabs / reloads.
+
+Per-row entry state (in-flight weight, reps, duration before tick) is
+local component `useState` inside `SetRow`. Once ticked, the row reads
+back from the `useLiveQuery` set-log map and re-renders in completed
+mode. Untick deletes the SetLog and the row swaps back to editable.
+
+### No native number inputs
+
+Per CLAUDE.md, weight/reps/time use a custom `NumberStepper` (− value
++ pill). Tap-to-type lands in milestone 4; long-press-to-scrub later.
+For now: 2.5 kg per +/-, 1 rep, 5 s. Bodyweight-measured exercises
+hide the weight stepper. Time-based (`time_seconds`) swap reps for a
+seconds stepper, per SCOPE.md §6.5 / §7.4.
+
+### Defaults that aren't zero
+
+A reps stepper defaulting to zero is hostile — every set requires four
++ taps before you can even tick it. Default reps to the midpoint of
+the planned range (e.g. `3 sets, 10–20 reps` → 15) so the user is one
+tap from a typical entry. Same for duration (midpoint of seconds
+range). Weight stays at 0 until milestone 4 / 7 plumbs in
+"last session's weight" lookup.
+
+### Discard / Finish
+
+Both live in a sticky bottom bar that vanishes on a completed session
+(read-only mode). Finish sets `completedAt` only; PR detection (which
+SCOPE.md §7.7 also schedules here) lives in milestone 7. Discard
+nukes the Session and all its SetLogs in one Dexie transaction —
+behind a `window.confirm` until we have a proper undo toast (also
+milestone 7).
+
+### Things deferred but designed-around
+
+- **Per-side tracking** for `perSide` exercises: currently logged as a
+  single SetLog with `side: null`. The schema supports `'left' | 'right'
+  | null` so milestone 4 can split into twin ticks without migration.
+- **Warmup / activation checklists** (SCOPE.md §6.3 step 1–2): the
+  importer doesn't extract them yet. The DayTemplate type already
+  has `warmups?` / `activations?` slots — populating from columns
+  2–10 of the spreadsheet is a discrete follow-up.
+- **Free sessions**: route exists, but `Session` requires a
+  `templateRef` to render anything useful right now. Milestone 4.
+- **Last-session ghost text** under the steppers: the lookup is cheap
+  (Dexie `where({ exerciseId, profileId })` + sortBy completedAt desc,
+  take 1) but defers to milestone 4.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in
