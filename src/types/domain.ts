@@ -134,6 +134,9 @@ export interface PlannedExercise {
 export interface Block {
   type: BlockType;
   exercises: PlannedExercise[];
+  /** Session-only flag — set when the user marks this block as skipped
+   * mid-workout. Has no meaning on routine templates. */
+  skipped?: boolean;
 }
 
 export type DayKind = 'workout' | 'rest';
@@ -186,6 +189,12 @@ export interface Session {
   notes?: string;
   /** Cached count of new PRs achieved this session. */
   prCount: number;
+  /** Per-session plan. For templated sessions this starts as a snapshot
+   * of the routine day's blocks; for free sessions it starts empty.
+   * Mid-workout edits (add/swap/skip/add-set) mutate this in place so
+   * the on-screen plan reflects what's actually being done, leaving
+   * the source routine template untouched. */
+  livePlan: Block[];
 }
 
 export interface SetLog {

@@ -10,6 +10,10 @@ import type {
   Session,
   SetLog,
 } from '../types';
+import type { Block } from '../types';
+
+// Pre-v2 sessions don't have `livePlan` yet — type for the upgrader.
+type V1Session = Omit<Session, 'livePlan'> & { livePlan?: Block[] };
 
 // Single Dexie instance for the app. Each Dexie table is typed via
 // `EntityTable<T, primaryKey>`; the second generic argument is the name
@@ -55,3 +59,44 @@ db.version(1).stores({
   bodyweightLogs: '&id, profileId, date, [profileId+date]',
   prRecords: '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
 });
+
+// v2 — Session.livePlan added (milestone 4). No new indexes; the field
+// is plain JSON inside each session row. Upgrader backfills existing
+// rows: templated sessions snapshot from their routine, free sessions
+// start with an empty plan. See DECISIONS.md for the live-plan rationale.
+db.version(2)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  })
+  .upgrade(async (tx) => {
+    const sessionsTable = tx.table('sessions');
+    const routinesTable = tx.table('routineTemplates');
+    const legacySessions = (await sessionsTable.toArray()) as V1Session[];
+    for (const s of legacySessions) {
+      if (s.livePlan) continue;
+      let livePlan: Block[] = [];
+      if (s.templateRef) {
+        const routine = (await routinesTable.get(
+          s.templateRef.routineId,
+        )) as RoutineTemplate | undefined;
+        const week = routine?.weeks.find(
+          (w) => w.weekNumber === s.templateRef!.weekNumber,
+        );
+        const day = week?.days.find(
+          (d) => d.dayNumber === s.templateRef!.dayNumber,
+        );
+        if (day?.blocks) livePlan = structuredClone(day.blocks);
+      }
+      await sessionsTable.update(s.id, { livePlan });
+    }
+  });

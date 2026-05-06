@@ -161,6 +161,7 @@ function DayCard({ routine, week, day, exerciseMap }: DayCardProps) {
           dayNumber: day.dayNumber,
         },
         planName: `${routine.name} · W${week.weekNumber} D${day.dayNumber}${day.workoutLabel ? ` · Workout ${day.workoutLabel}` : ''}`,
+        livePlan: day.blocks,
       });
       navigate(`/session/${id}`);
     } finally {

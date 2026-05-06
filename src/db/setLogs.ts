@@ -42,6 +42,10 @@ export async function deleteSet(id: string): Promise<void> {
   await db.setLogs.delete(id);
 }
 
+export async function updateSetType(id: string, setType: SetType): Promise<void> {
+  await db.setLogs.update(id, { setType });
+}
+
 /** All set logs for a session, ordered by completion time. */
 export function useSessionSetLogs(
   sessionId: string | undefined,

@@ -376,6 +376,90 @@ milestone 7).
 
 ---
 
+## 2026-05-06 — Milestone 4: Free sessions + mid-workout editing
+
+**Context.** Acceptance was "can deviate from any plan and have logs
+reflect reality" — so the session screen needed to (a) start from
+nothing for free sessions, and (b) be safely mutable mid-workout
+without touching the underlying routine template.
+
+### Per-session `livePlan` (Dexie v2)
+
+Single biggest move: each `Session` carries its own `livePlan: Block[]`.
+- For templated sessions, `Start` snapshots the routine day's blocks
+  via `structuredClone` into livePlan. The routine template is now
+  read-only from the session's perspective.
+- For free sessions, `livePlan` starts as `[]`.
+- Mid-session edits (`appendBlock`, `swapExercise`, `setBlockSkipped`,
+  `changeSetCount`) mutate livePlan; the routine template never moves.
+- Schema bumped to v2 with an upgrader that backfills existing v1
+  sessions: templated rows snapshot from their routine, free rows
+  get `[]`. No new indexes — `livePlan` is just JSON inside the row.
+
+Why per-session and not "deltas against the template": deltas keep
+the routine as source of truth but make every render do a merge.
+Snapshot is bigger on disk (~hundreds of bytes per session) and
+lets the render path be a flat traversal. For a single-device app,
+the trade-off is obvious.
+
+### Editing affordances
+
+Inline buttons rather than long-press, for milestone 4. Long-press is
+finicky on web and would require gesture infrastructure we don't yet
+need. Per-exercise: `Swap` / `− Set` / `+ Set` buttons in a small
+row beneath the set list. Per-block: `Skip block` / `Resume` button
+in the block header. Session-wide: `+ Add exercise` button (plus the
+empty-state CTA in free sessions).
+
+Long-press menus may come back in milestone 11/12 polish if the inline
+controls feel cluttered with notes/RPE on the same row.
+
+### Swap preserves target structure
+
+When swapping an exercise mid-session, we keep the existing
+`setCount` / `reps` / `durationSeconds` / `perSide` / `notes` and
+just substitute the `exerciseId` — usually a swap is "I don't have
+the bar today, give me the dumbbell variant", not "I want to do
+something completely different." If the new exercise's measurement
+type can't carry the old structure (e.g. swapping a weight-and-reps
+lift for a time-based plank), we fall back to the new exercise's
+sensible defaults but keep the old `setCount`. See
+`mergePlanForSwap` in [src/screens/Session.tsx](src/screens/Session.tsx).
+
+### Set-type chip
+
+Each `SetRow` carries a small two-letter chip (`W` / `WU` / `D` /
+`F` / `A+`). Tap to cycle. For uncompleted rows the change is
+in-flight (used when the row is ticked); for completed rows it
+persists immediately via `updateSetType` so a mistakenly-tagged set
+can be re-classified without an undo. PR detection (milestone 7)
+respects only `working` and `amrap` per SCOPE.md §7.7 — the schema
+already carries the field, so milestone 7 is purely additive.
+
+### Exercise picker
+
+Bottom-sheet style modal, fixed at the bottom of the viewport. Custom
+text input for search (text inputs are fine — only `<input
+type="number">` is banned per CLAUDE.md). Searches name, category,
+and primary muscles. Closes on backdrop click or Esc. Used for both
+add and swap (a `title` prop differentiates the header eyebrow).
+
+### Things deferred from the milestone-4 surface area
+
+- **Per-exercise notes editing** in-session — listed in SCOPE.md §6.3
+  for the long-press menu; defers to milestone 7 alongside RPE / per-set
+  notes (it's a single UI gesture so they ship together).
+- **Last-session ghost text** under steppers — needs an exercise-history
+  query that's better written once we have PR detection cached
+  (milestone 7).
+- **Per-side L/R splits** — schema supports it, UI defers; today every
+  set logs as a single row with `side: null`, which under-reports per-
+  side reps but won't lose data.
+- **Reorder blocks / exercises** — out of scope; user can always
+  add/skip to achieve the same effect.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

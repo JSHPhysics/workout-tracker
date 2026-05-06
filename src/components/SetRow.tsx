@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { logSet, deleteSet } from '../db/setLogs';
+import { logSet, deleteSet, updateSetType } from '../db/setLogs';
 import { NumberStepper } from './NumberStepper';
-import type { Exercise, PlannedExercise, SetLog } from '../types';
+import { SetTypeChip } from './SetTypeChip';
+import type { Exercise, PlannedExercise, SetLog, SetType } from '../types';
 
 interface Props {
   sessionId: string;
@@ -12,6 +13,8 @@ interface Props {
   exercise: Exercise;
   /** Existing log for this slot — if present, the row renders completed. */
   existingLog: SetLog | null;
+  /** Whether the parent block is skipped — locks edits and tick. */
+  blockSkipped: boolean;
 }
 
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
@@ -26,13 +29,12 @@ export function SetRow({
   planned,
   exercise,
   existingLog,
+  blockSkipped,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isBodyweight =
     exercise.measurementType === 'bodyweight_reps' && !exercise.usesBarbell;
 
-  // Sensible defaults: midpoint of the planned range so the user is one
-  // tap away from a typical entry.
   const defaultReps = planned.reps
     ? Math.round((planned.reps.min + planned.reps.max) / 2)
     : 0;
@@ -42,29 +44,29 @@ export function SetRow({
       )
     : 0;
 
-  const [weight, setWeight] = useState<number>(
-    existingLog?.weight ?? (isBodyweight ? 0 : 0),
-  );
+  const [weight, setWeight] = useState<number>(existingLog?.weight ?? 0);
   const [reps, setReps] = useState<number>(existingLog?.reps ?? defaultReps);
   const [duration, setDuration] = useState<number>(
     existingLog?.durationSeconds ?? defaultDuration,
   );
+  const [setType, setSetType] = useState<SetType>(
+    existingLog?.setType ?? 'working',
+  );
   const [busy, setBusy] = useState(false);
 
-  // Re-sync local state if Dexie pushes us a new existingLog (e.g. after
-  // an external edit). useState init only runs on mount.
   useEffect(() => {
     if (existingLog) {
       setWeight(existingLog.weight ?? 0);
       setReps(existingLog.reps ?? defaultReps);
       setDuration(existingLog.durationSeconds ?? defaultDuration);
+      setSetType(existingLog.setType);
     }
   }, [existingLog, defaultReps, defaultDuration]);
 
   const completed = !!existingLog;
 
   const tick = async () => {
-    if (busy) return;
+    if (busy || blockSkipped) return;
     setBusy(true);
     try {
       await logSet({
@@ -73,6 +75,7 @@ export function SetRow({
         blockOrder,
         exerciseOrder,
         setNumber,
+        setType,
         ...(isTimeBased
           ? { durationSeconds: duration }
           : { reps, ...(isBodyweight ? {} : { weight }) }),
@@ -92,18 +95,35 @@ export function SetRow({
     }
   };
 
+  const handleSetTypeChange = async (next: SetType) => {
+    setSetType(next);
+    if (existingLog) {
+      // Persist immediately for already-logged sets.
+      await updateSetType(existingLog.id, next);
+    }
+  };
+
   return (
     <div
       className={[
         'flex items-center gap-3 rounded-xl border px-3 py-2',
-        completed
-          ? 'border-accent/40 bg-accent-soft'
-          : 'border-line bg-surface',
+        blockSkipped
+          ? 'border-line bg-surface-soft/40 opacity-60'
+          : completed
+            ? 'border-accent/40 bg-accent-soft'
+            : 'border-line bg-surface',
       ].join(' ')}
     >
-      <span className="w-10 shrink-0 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-fg-muted">
-        Set {setNumber}
-      </span>
+      <div className="flex w-12 shrink-0 flex-col items-start gap-1">
+        <span className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-fg-muted">
+          Set {setNumber}
+        </span>
+        <SetTypeChip
+          value={setType}
+          onChange={handleSetTypeChange}
+          disabled={blockSkipped}
+        />
+      </div>
 
       <div className="flex flex-1 flex-wrap items-center gap-2">
         {!isTimeBased && !isBodyweight && (
@@ -112,7 +132,7 @@ export function SetRow({
             onChange={setWeight}
             step={WEIGHT_STEP}
             ariaLabel="Weight in kilograms"
-            disabled={completed}
+            disabled={completed || blockSkipped}
             format={(v) => `${v % 1 === 0 ? v : v.toFixed(1)} kg`}
             width={6}
           />
@@ -123,7 +143,7 @@ export function SetRow({
             onChange={setReps}
             step={REPS_STEP}
             ariaLabel="Reps"
-            disabled={completed}
+            disabled={completed || blockSkipped}
             format={(v) => `${v} reps`}
             width={6}
           />
@@ -134,7 +154,7 @@ export function SetRow({
             onChange={setDuration}
             step={TIME_STEP}
             ariaLabel="Duration in seconds"
-            disabled={completed}
+            disabled={completed || blockSkipped}
             format={(v) => `${v}s`}
             width={5}
           />
@@ -146,7 +166,7 @@ export function SetRow({
           type="button"
           onClick={undo}
           aria-label="Undo set"
-          disabled={busy}
+          disabled={busy || blockSkipped}
           className="flex h-12 w-12 items-center justify-center rounded-full text-fg-muted transition hover:bg-surface-elevated hover:text-fg disabled:opacity-50"
           title="Undo"
         >
@@ -157,7 +177,7 @@ export function SetRow({
           type="button"
           onClick={tick}
           aria-label="Complete set"
-          disabled={busy}
+          disabled={busy || blockSkipped}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-fg transition hover:opacity-90 disabled:opacity-50"
           title="Tick"
         >
