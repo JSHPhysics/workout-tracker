@@ -551,6 +551,91 @@ hook means none of them step on the rest-timer wake lock.
 
 ---
 
+## 2026-05-06 — Milestone 6: Plate calculator + equipment
+
+**Context.** Acceptance was "setting target weight shows correct plate
+load-out; closest-achievable suggestion works." Three surfaces ship
+together: the pure domain solver, an inline viz under barbell SetRows,
+and a Settings → Equipment page (barbells + plate inventory + Test
+widget).
+
+### Algorithm: subset-sum, not greedy
+
+Initial pass used greedy-down (heaviest plate first) plus an "upgrade"
+fallback for the closest-above. Greedy gives the exact answer when one
+exists, but the upgrade fallback didn't always find the most elegant
+composition — e.g. it produced `[1.25, 1.25]` per side when `[2.5]`
+would do. Replaced with a subset-sum enumeration that:
+1. Halves total inventory counts to per-side counts.
+2. Walks plate weights descending, building a `Map<perSideTotal,
+   plates[]>` of every reachable load. Heaviest-first walk means the
+   first composition we record for any total is already canonically
+   ordered.
+3. Picks the reachable total nearest the target. Tie-break: prefer
+   the lower total so the user never gets surprise extra weight.
+
+State space is tiny for realistic inventories (UK home-gym = ~30–40
+distinct totals), so the enumeration is essentially free. 13
+test cases in [src/domain/plate-calculator.test.ts](src/domain/plate-calculator.test.ts)
+pin the behaviour: exact, under-bar, empty inventory, fractional plates,
+inventory limits, odd-count plates (rounded down to pairs), and the
+two closest-achievable directions.
+
+### Defaults: UK home-gym (now logged, was an open question)
+
+Closed the open question on default plate inventory. Per-profile seed
+on first boot:
+- Barbells: Olympic 20 kg (default) + Women's 15 kg.
+- Plates: 4× 20 kg, 2× 15 kg, 4× 10 kg, 2× 5 kg, 4× 2.5 kg, 4× 1.25 kg
+  (counts are total across both sides).
+
+Seed loader writes equipment **additively only** — once a profile has
+any barbell or plate row, the seeder leaves the equipment alone.
+User's adjustments stick across `pnpm seed:build` re-runs.
+
+### Inline viz on SetRow
+
+`PlateViz` mirrors the load around a thin "sleeve" element. Plates
+render as sized rectangles (heavier = taller, slightly wider) with
+the weight printed inside. Three states:
+- **exact** — viz only, no caption.
+- **closest** — caption: `Closest achievable: X kg (±delta)`.
+- **under-bar** / **empty-inventory** — viz collapses to just the
+  bar; explanatory caption.
+
+Only renders when `exercise.usesBarbell && weight > 0`. The viz
+appears below the steppers, separated by a hairline. Bar weight comes
+from the profile's default barbell; per-exercise barbell override
+remains deferred per SCOPE.md §11.
+
+### Equipment surface
+
+`Settings → Equipment` page splits into three articles:
+- **Barbells** — list with inline edit (name + weight steppers),
+  default-marker action, delete-with-confirm. Adding a bar opens an
+  inline form in the same card. If the user deletes the default,
+  the heaviest remaining bar gets promoted automatically.
+- **Plate inventory** — fixed list of standard weights (25 / 20 / 15 /
+  10 / 5 / 2.5 / 1.25 kg), each row a pair-stepping number stepper.
+  Step is 2 (one pair). Setting a count to 0 removes the entry from
+  the persisted inventory.
+- **Test it** — target stepper + live `PlateViz`. Pinned to the
+  default barbell.
+
+### Things deferred
+
+- **Per-exercise barbell override** (e.g. EZ-curl bar for biceps work)
+  — still SCOPE.md §11 deferred. The PlateViz is bar-aware so a future
+  override is a one-prop change.
+- **Custom plate weights** — only the standard 7 sizes are exposed in
+  the editor today. Adding e.g. 1 kg fractional plates means extending
+  `STANDARD_WEIGHTS` and the seed.
+- **Plate colours** — schema has the slot (`PlateInventoryEntry.color`)
+  but the viz uses neutral monochrome so it works on Hayley's pink and
+  Joshua's cream alike. Colour-coded plates revisit in milestone 12 polish.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in
@@ -561,9 +646,9 @@ parentheses.
 - ~~Colour palette and primary accent~~ — settled 2026-05-06; see
   "Visual identity" entry above. Profile-as-accent: Joshua green, Hayley
   coral, warm cream surface palette, profile-driven via CSS variables.
-- **Default plate inventory** — UK home-gym standard (1.25 / 2.5 / 5 / 10 /
-  15 / 20 kg pairs) is the working assumption per SCOPE.md §6.4. Confirm
-  before milestone 6 (plate calculator).
+- ~~Default plate inventory~~ — settled 2026-05-06; UK home-gym
+  (4× 20 / 2× 15 / 4× 10 / 2× 5 / 4× 2.5 / 4× 1.25 kg) plus Olympic
+  20 kg + Women's 15 kg bars. See "Milestone 6" entry above.
 - **Volume-by-muscle weighting for secondary muscles** — primary at 100%;
   secondary at 50%? 33%? 0%? Need by milestone 8.
 - **Auto-warmup heuristic threshold and on/off default** — SCOPE.md §7.6

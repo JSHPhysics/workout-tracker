@@ -3,8 +3,15 @@ import { logSet, deleteSet, updateSetType } from '../db/setLogs';
 import { useRestTimer } from '../state/restTimer';
 import { primeAudio } from '../lib/cue';
 import { NumberStepper } from './NumberStepper';
+import { PlateViz } from './PlateViz';
 import { SetTypeChip } from './SetTypeChip';
-import type { Exercise, PlannedExercise, SetLog, SetType } from '../types';
+import type {
+  Exercise,
+  PlannedExercise,
+  PlateInventoryEntry,
+  SetLog,
+  SetType,
+} from '../types';
 
 interface Props {
   sessionId: string;
@@ -17,6 +24,11 @@ interface Props {
   existingLog: SetLog | null;
   /** Whether the parent block is skipped — locks edits and tick. */
   blockSkipped: boolean;
+  /** Default barbell weight for this profile, used by the plate viz on
+   * `usesBarbell` exercises. null while loading or unavailable. */
+  barWeight: number | null;
+  /** Profile's plate inventory; null while loading. */
+  plateInventory: PlateInventoryEntry[] | null;
 }
 
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
@@ -46,6 +58,8 @@ export function SetRow({
   exercise,
   existingLog,
   blockSkipped,
+  barWeight,
+  plateInventory,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isBodyweight =
@@ -131,10 +145,18 @@ export function SetRow({
     }
   };
 
+  const showPlateViz =
+    exercise.usesBarbell &&
+    !isTimeBased &&
+    !isBodyweight &&
+    barWeight !== null &&
+    plateInventory !== null &&
+    weight > 0;
+
   return (
     <div
       className={[
-        'flex items-center gap-3 rounded-xl border px-3 py-2',
+        'flex flex-col gap-2 rounded-xl border px-3 py-2',
         blockSkipped
           ? 'border-line bg-surface-soft/40 opacity-60'
           : completed
@@ -142,6 +164,7 @@ export function SetRow({
             : 'border-line bg-surface',
       ].join(' ')}
     >
+    <div className="flex items-center gap-3">
       <div className="flex w-12 shrink-0 flex-col items-start gap-1">
         <span className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-fg-muted">
           Set {setNumber}
@@ -211,6 +234,16 @@ export function SetRow({
         >
           ✓
         </button>
+      )}
+      </div>
+
+      {showPlateViz && barWeight !== null && plateInventory !== null && (
+        <PlateViz
+          target={weight}
+          barWeight={barWeight}
+          inventory={plateInventory}
+          className="mt-1 border-t border-line/60 pt-2"
+        />
       )}
     </div>
   );

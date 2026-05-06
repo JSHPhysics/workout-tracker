@@ -11,6 +11,7 @@ import {
 } from '../db/sessions';
 import { useSessionSetLogs } from '../db/setLogs';
 import { useExerciseMap } from '../db/exercises';
+import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { ExercisePicker } from '../components/ExercisePicker';
 import { RestTimerBar } from '../components/RestTimerBar';
@@ -20,6 +21,7 @@ import type {
   Block,
   Exercise,
   PlannedExercise,
+  PlateInventoryEntry,
   SetLog,
 } from '../types';
 
@@ -32,6 +34,8 @@ export function Session() {
   const session = useSession(id);
   const setLogs = useSessionSetLogs(id);
   const exerciseMap = useExerciseMap();
+  const defaultBar = useDefaultBarbell(session?.profileId);
+  const plateInv = usePlateInventory(session?.profileId);
   const navigate = useNavigate();
   const dismissRest = useRestTimer((s) => s.dismiss);
   const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
@@ -172,6 +176,8 @@ export function Session() {
                     exerciseMap={exerciseMap}
                     logsByKey={logsByKey}
                     locked={sessionDone}
+                    barWeight={defaultBar?.weight ?? null}
+                    plateInventory={plateInv?.plates ?? null}
                     onSwap={(exerciseOrder) =>
                       setPickerTarget({
                         kind: 'swap',
@@ -281,6 +287,8 @@ interface BlockCardProps {
   exerciseMap: Map<string, Exercise>;
   logsByKey: Map<string, SetLog>;
   locked: boolean;
+  barWeight: number | null;
+  plateInventory: PlateInventoryEntry[] | null;
   onSwap: (exerciseOrder: number) => void;
 }
 
@@ -292,6 +300,8 @@ function BlockCard({
   exerciseMap,
   logsByKey,
   locked,
+  barWeight,
+  plateInventory,
   onSwap,
 }: BlockCardProps) {
   const skipped = !!block.skipped;
@@ -348,6 +358,8 @@ function BlockCard({
             logsByKey={logsByKey}
             blockSkipped={skipped}
             locked={locked}
+            barWeight={barWeight}
+            plateInventory={plateInventory}
             onSwap={() => onSwap(exIdx)}
           />
         ))}
@@ -366,6 +378,8 @@ interface ExerciseGroupProps {
   logsByKey: Map<string, SetLog>;
   blockSkipped: boolean;
   locked: boolean;
+  barWeight: number | null;
+  plateInventory: PlateInventoryEntry[] | null;
   onSwap: () => void;
 }
 
@@ -379,6 +393,8 @@ function ExerciseGroup({
   logsByKey,
   blockSkipped,
   locked,
+  barWeight,
+  plateInventory,
   onSwap,
 }: ExerciseGroupProps) {
   if (!exercise) {
@@ -428,6 +444,8 @@ function ExerciseGroup({
                 null
               }
               blockSkipped={blockSkipped}
+              barWeight={barWeight}
+              plateInventory={plateInventory}
             />
           ),
         )}
