@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { SEED_PROFILES } from '../seed/profiles';
 import { TabBar } from './TabBar';
+import { ThemeToggle } from './ThemeToggle';
 
 const ACCENT_DOT: Record<string, string> = {
   'profile-josh': 'bg-profile-josh',
@@ -44,9 +45,7 @@ export function AppShell() {
           />
           <span className="text-sm font-medium">{profile.name}</span>
         </button>
-        <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Workout Tracker
-        </span>
+        <ThemeToggle />
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 py-6">

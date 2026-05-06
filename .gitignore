@@ -40,6 +40,8 @@ coverage
 .env.local
 .env.*.local
 
-# Strong Curves source spreadsheet — ignored by default; checked-in
-# generated TS in src/seed/strongCurves.ts is the build artifact.
+# Strong Curves source spreadsheet (and any other .xlsx) — ignored
+# by default; the checked-in artifact is the generated TS in
+# src/seed/strongCurves.ts. Build with `pnpm seed:build`.
+*.xlsx
 scripts/source/*.xlsx

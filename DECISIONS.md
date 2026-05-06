@@ -77,19 +77,31 @@ is reserved for ephemeral UI state per CLAUDE.md.
 
 ---
 
-## 2026-05-06 — Tailwind dark mode follows the OS
+## 2026-05-06 — Tailwind dark mode: explicit toggle, OS as default
 
 **Context.** SCOPE.md §9 says dark mode is the default; CLAUDE.md says light
-mode follows `prefers-color-scheme`. There is no in-app toggle in v1.
+mode follows `prefers-color-scheme`. Initial milestone-1 implementation used
+`darkMode: 'media'` with no toggle. Owner pushed back: wants light mode
+reachable from the start, not gated on OS settings.
 
-**Decision.** Tailwind `darkMode: 'media'` (no class strategy, no toggle).
+**Decision.** Tailwind `darkMode: 'class'`. A small three-state preference
+(`light` / `system` / `dark`) lives in `src/state/theme.ts`, persisted to
+`localStorage` under `wt:theme`, applied to `<html>` via the `dark` class
+and `color-scheme` style. Default is `system`, which tracks
+`prefers-color-scheme` live (re-evaluates on OS change). A segmented
+`ThemeToggle` is surfaced in the app header **and** the profile picker so
+the choice is reachable on first launch.
 
-**Alternatives.** `darkMode: 'class'` plus an explicit toggle in Settings.
-Defer to a later milestone if a "high-contrast for gym lighting" preference
-gets prioritised — that may want explicit override semantics anyway.
+**Alternatives.**
+- Two-state toggle (light/dark only) — slightly simpler, but loses the
+  "follow my phone" affordance most users expect.
+- Toggle only in Settings — fewer pixels in the header, but hides the
+  control behind several taps and removes it from the picker entirely.
 
-**Consequences.** Theme changes follow the OS instantly; no flash from
-hydration mismatch; nothing to persist.
+**Consequences.** Theme is now persisted state living in `localStorage`,
+not Dexie — fine, it's a UI preference, not domain data. A class is set on
+`<html>` before React mounts (`initTheme()` called in `main.tsx`) to avoid
+a flash of wrong theme.
 
 ---
 

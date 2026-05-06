@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { SEED_PROFILES } from '../seed/profiles';
 import { useActiveProfile } from '../state/activeProfile';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const ACCENT_BG: Record<string, string> = {
   'profile-josh': 'bg-profile-josh',
@@ -18,12 +19,19 @@ export function ProfilePicker() {
 
   return (
     <div
-      className="flex min-h-full flex-col items-center justify-center gap-8 px-6 py-12"
+      className="relative flex min-h-full flex-col items-center justify-center gap-8 px-6 py-12"
       style={{
         paddingTop: 'calc(env(safe-area-inset-top) + 3rem)',
         paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)',
       }}
     >
+      <div
+        className="absolute right-4 top-4"
+        style={{ top: 'calc(env(safe-area-inset-top) + 1rem)' }}
+      >
+        <ThemeToggle />
+      </div>
+
       <header className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Who's lifting?</h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

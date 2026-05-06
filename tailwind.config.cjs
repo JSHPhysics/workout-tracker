@@ -1,8 +1,9 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
-  // Dark mode follows the OS via `prefers-color-scheme` (Tailwind's `media` strategy).
-  darkMode: 'media',
+  // Class strategy so an in-app toggle can override the OS preference.
+  // The `dark` class is set on <html> by src/state/theme.ts.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
