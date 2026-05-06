@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { SEED_PROFILES } from '../seed/profiles';
+import { useProfiles } from '../db/profiles';
 import { useActiveProfile } from '../state/activeProfile';
 import { ThemeToggle } from '../components/ThemeToggle';
 
@@ -16,6 +16,7 @@ const ACCENT_RING: Record<string, string> = {
 export function ProfilePicker() {
   const navigate = useNavigate();
   const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
+  const profiles = useProfiles();
 
   const choose = (id: string) => {
     setActiveProfileId(id);
@@ -51,7 +52,7 @@ export function ProfilePicker() {
         </header>
 
         <ul className="flex w-full max-w-sm flex-col gap-3">
-          {SEED_PROFILES.map((profile) => (
+          {(profiles ?? []).map((profile) => (
             <li key={profile.id}>
               <button
                 type="button"
@@ -89,6 +90,12 @@ export function ProfilePicker() {
               </button>
             </li>
           ))}
+          {profiles === undefined && (
+            <li
+              aria-hidden
+              className="h-[72px] animate-pulse rounded-2xl border border-cream-200 bg-cream-100 dark:border-cream-800 dark:bg-cream-900"
+            />
+          )}
         </ul>
       </div>
 

@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
-import { SEED_PROFILES } from '../seed/profiles';
+import { useProfile } from '../db/profiles';
 import { TabBar } from './TabBar';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -12,13 +12,21 @@ const ACCENT_DOT: Record<string, string> = {
 export function AppShell() {
   const activeProfileId = useActiveProfile((s) => s.activeProfileId);
   const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
+  const profile = useProfile(activeProfileId);
 
   if (!activeProfileId) {
     return <Navigate to="/" replace />;
   }
 
-  const profile = SEED_PROFILES.find((p) => p.id === activeProfileId);
-  if (!profile) {
+  // Still loading from Dexie — keep the chrome but soften the profile chip.
+  if (profile === undefined) {
+    return (
+      <div className="flex min-h-full flex-col bg-cream-50 dark:bg-cream-950" />
+    );
+  }
+
+  if (profile === null) {
+    // Stale id (e.g. profile deleted from another tab) — boot back.
     setActiveProfileId(null);
     return <Navigate to="/" replace />;
   }

@@ -156,6 +156,84 @@ Hayley.
 
 ---
 
+## 2026-05-06 — Milestone 2: Dexie schema + Strong Curves seed
+
+**Context.** Milestone 2 needed both built-in routines loaded into IndexedDB
+on first boot, with a browseable routine detail surface. The source xlsx
+ships with a couple of structural quirks that the importer had to handle,
+and exercise metadata (muscle tags, rest, barbell flag) isn't in the file.
+
+### Schema
+
+`src/db/db.ts` declares one Dexie database (`workout-tracker`) with nine
+tables matching SCOPE.md §4.3: `profiles`, `exercises`, `routineTemplates`,
+`sessions`, `setLogs`, `barbells`, `plateInventory`, `bodyweightLogs`,
+`prRecords`. Indexes chosen for the queries we already need or will need
+soon:
+- `setLogs` has a compound `[sessionId+blockOrder+exerciseOrder+setNumber]`
+  to render the session screen in canonical order without an in-memory sort.
+- `sessions` indexes `[profileId+startedAt]` for fast per-profile history.
+- `prRecords` indexes `[profileId+exerciseId+type]` for the PR-detection
+  hot path (milestone 7).
+
+Schema migrations are additive, never edited in place. Document each new
+`version().stores()` chain here.
+
+### Per-entity query modules
+
+`src/db/{profiles,routines,exercises}.ts` expose typed `useLiveQuery`
+helpers so screens don't reach into Dexie directly. Adding more is cheap
+when new screens land.
+
+### Seed loader
+
+`src/db/seed-loader.ts` runs once on app boot from `main.tsx`. Profiles
+are additive-only (never overwrite a user's edits). Built-in exercises
+and routines are *replaced* on every boot — bumping `pnpm seed:build`
+propagates without leaving stale rows. Custom rows (`isCustom: true`,
+`isSeed: false`) are left alone. Idempotent, safe to re-run.
+
+### Strong Curves importer (scripts/build-seed.py)
+
+Parses each "{Routine} Week {n}" sheet positionally — first workout
+section becomes Day 1, second Day 2, third Day 4, fourth Day 5
+(SCOPE.md §6/§7's documented A/B/A/C cadence). The source xlsx
+mis-labels the third section as "DAY 1" from Bootyful Week 5 and across
+all Bodyweight weeks; trusting the position rather than the header
+side-steps that bug. Days 3, 6, 7 are explicitly emitted as `kind:
+'rest'` so the detail view can render them.
+
+Supersets are detected from `A1:`/`A2:`/`B1:`/`B2:` prefixes. Sets/reps
+parse a small grammar: `N sets, X-Y reps`, `1 set (X-Y seconds)`,
+optional `(each)` / `(each side)`. Anything past the last (name,
+sets/reps) pair is treated as image-anchor noise and skipped.
+
+Exercise metadata not in the spreadsheet (muscle tags, rest seconds,
+`usesBarbell`, measurement type) lives in an `EXERCISE_OVERRIDES` dict
+inside `build-seed.py`. Unknown exercises fall through to safe defaults
+and are listed at the end of the run; 23 of the 50 currently rely on
+defaults — to be filled in incrementally.
+
+### Routine browse surface
+
+`/routines` lists templates (built-ins badged). Tapping a card opens
+`/routines/:id` — a Fraunces hero, scrollable week tabs (using the
+profile's accent colour for the active state), and one card per day.
+Workout days show their blocks with superset markers (A1/A2/B1/B2
+re-numbered per day so that's stable across sources); rest days render
+as a dashed muted card. Reads use the `useLiveQuery` hooks from
+`src/db/`, so future Dexie writes (mid-session edits, custom routines)
+will repaint live with no extra plumbing.
+
+### Bundle impact
+
+JS grew from 175 kB to 338 kB (95 kB gzipped) — most of it is the seed
+data itself (296 blocks × rep ranges). Comfortably under the 300 kB
+gzipped budget. If we ever need to slim it, the seed could split into
+its own chunk loaded on demand from `/routines`.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

@@ -1,23 +1,28 @@
 import type { Profile } from '../types';
 
-// Hardcoded for milestone 1. Real profile storage arrives with the Dexie
-// schemas in milestone 2; the picker UI then reads from the DB instead.
+// Seed profile records written to Dexie on first boot by
+// src/db/seed-loader.ts. Once a profile is selected, the activeProfile
+// store sets a `data-profile` attribute on <html> and CSS variables in
+// index.css re-bind the entire `accent` palette across the app.
 //
-// `accent` is a static colour for the picker chip. Once a profile is
-// selected, src/state/theme.ts (via setActiveProfileId) sets a
-// `data-profile` attribute on <html>, and CSS variables in index.css
-// re-bind the entire `accent` palette across the app.
+// We use a fixed ISO timestamp (the project epoch) so seed records are
+// deterministic — re-running the seed loader on a fresh DB produces the
+// same `createdAt` value.
+const SEED_EPOCH = '2026-05-06T00:00:00.000Z';
+
 export const SEED_PROFILES: readonly Profile[] = [
   {
     id: 'joshua',
     name: 'Joshua',
     accent: 'profile-josh',
     unitSystem: 'kg',
+    createdAt: SEED_EPOCH,
   },
   {
     id: 'hayley',
     name: 'Hayley',
     accent: 'profile-hayley',
     unitSystem: 'kg',
+    createdAt: SEED_EPOCH,
   },
 ] as const;

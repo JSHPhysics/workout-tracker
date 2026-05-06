@@ -5,6 +5,7 @@ import { Today } from './screens/Today';
 import { History } from './screens/History';
 import { Progress } from './screens/Progress';
 import { Routines } from './screens/Routines';
+import { RoutineDetail } from './screens/RoutineDetail';
 import { Settings } from './screens/Settings';
 
 export function App() {
@@ -16,6 +17,7 @@ export function App() {
         <Route path="/history" element={<History />} />
         <Route path="/progress" element={<Progress />} />
         <Route path="/routines" element={<Routines />} />
+        <Route path="/routines/:id" element={<RoutineDetail />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

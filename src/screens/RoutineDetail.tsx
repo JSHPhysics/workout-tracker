@@ -1,0 +1,266 @@
+import { useMemo, useState } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { useRoutine } from '../db/routines';
+import { useExerciseMap } from '../db/exercises';
+import type {
+  Block,
+  DayTemplate,
+  Exercise,
+  PlannedExercise,
+  WeekTemplate,
+} from '../types';
+
+export function RoutineDetail() {
+  const { id } = useParams<{ id: string }>();
+  const routine = useRoutine(id);
+  const exerciseMap = useExerciseMap();
+  const [activeWeek, setActiveWeek] = useState<number>(1);
+
+  if (routine === null) return <Navigate to="/routines" replace />;
+
+  if (routine === undefined || exerciseMap === undefined) {
+    return (
+      <section className="mx-auto flex max-w-md flex-col gap-6">
+        <div
+          aria-hidden
+          className="h-8 w-1/3 animate-pulse rounded bg-cream-100 dark:bg-cream-900"
+        />
+        <div
+          aria-hidden
+          className="h-32 animate-pulse rounded-2xl bg-cream-100 dark:bg-cream-900"
+        />
+      </section>
+    );
+  }
+
+  const week =
+    routine.weeks.find((w) => w.weekNumber === activeWeek) ?? routine.weeks[0];
+
+  return (
+    <section className="mx-auto flex max-w-md flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <Link
+          to="/routines"
+          className="self-start text-[0.7rem] uppercase tracking-[0.2em] text-cream-500 hover:text-accent dark:text-cream-400"
+        >
+          ← Routines
+        </Link>
+        {routine.isSeed && (
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
+            Built-in
+          </span>
+        )}
+        <h1 className="font-display text-3xl font-light leading-[1.1] tracking-tight">
+          {routine.name}
+        </h1>
+        <p className="text-sm leading-relaxed text-cream-600 dark:text-cream-400">
+          {routine.description}
+        </p>
+      </header>
+
+      <WeekSwitcher
+        weeks={routine.weeks}
+        active={activeWeek}
+        onChange={setActiveWeek}
+      />
+
+      {week && <WeekView week={week} exerciseMap={exerciseMap} />}
+    </section>
+  );
+}
+
+interface WeekSwitcherProps {
+  weeks: WeekTemplate[];
+  active: number;
+  onChange: (weekNumber: number) => void;
+}
+
+function WeekSwitcher({ weeks, active, onChange }: WeekSwitcherProps) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Weeks"
+      className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1"
+    >
+      {weeks.map((w) => {
+        const isActive = w.weekNumber === active;
+        return (
+          <button
+            key={w.weekNumber}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(w.weekNumber)}
+            className={[
+              'min-h-[36px] shrink-0 rounded-full border px-3 text-xs font-medium tracking-wide transition',
+              isActive
+                ? 'border-transparent bg-accent text-accent-fg'
+                : 'border-cream-200 bg-white text-cream-700 hover:border-cream-300 dark:border-cream-800 dark:bg-cream-900 dark:text-cream-200 dark:hover:border-cream-700',
+            ].join(' ')}
+          >
+            Week {w.weekNumber}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface WeekViewProps {
+  week: WeekTemplate;
+  exerciseMap: Map<string, Exercise>;
+}
+
+function WeekView({ week, exerciseMap }: WeekViewProps) {
+  return (
+    <div className="flex flex-col gap-3">
+      {week.days.map((day) => (
+        <DayCard key={day.dayNumber} day={day} exerciseMap={exerciseMap} />
+      ))}
+    </div>
+  );
+}
+
+interface DayCardProps {
+  day: DayTemplate;
+  exerciseMap: Map<string, Exercise>;
+}
+
+function DayCard({ day, exerciseMap }: DayCardProps) {
+  const dayLabel = `Day ${day.dayNumber}`;
+  if (day.kind === 'rest') {
+    return (
+      <article className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 px-5 py-4 dark:border-cream-800 dark:bg-cream-950/50">
+        <div className="flex items-center justify-between">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-cream-500 dark:text-cream-400">
+            {dayLabel}
+          </span>
+          <span className="font-display text-sm italic text-cream-500 dark:text-cream-400">
+            Rest
+          </span>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="rounded-2xl border border-cream-200 bg-white p-5 shadow-soft dark:border-cream-800 dark:bg-cream-900 dark:shadow-none">
+      <div className="flex items-baseline justify-between">
+        <div className="flex flex-col">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-cream-500 dark:text-cream-400">
+            {dayLabel}
+          </span>
+          <h3 className="font-display text-lg font-medium tracking-tight">
+            Workout {day.workoutLabel}
+          </h3>
+        </div>
+        <span className="text-xs text-cream-500 dark:text-cream-400">
+          {day.blocks.length} block{day.blocks.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <ol className="mt-4 flex flex-col gap-3">
+        {(() => {
+          let supersetIdx = 0;
+          return day.blocks.map((block, i) => {
+            const letter =
+              block.type === 'superset'
+                ? String.fromCharCode(0x41 + supersetIdx++)
+                : null;
+            return (
+              <li key={i}>
+                <BlockRow
+                  block={block}
+                  exerciseMap={exerciseMap}
+                  supersetLetter={letter}
+                />
+              </li>
+            );
+          });
+        })()}
+      </ol>
+    </article>
+  );
+}
+
+interface BlockRowProps {
+  block: Block;
+  exerciseMap: Map<string, Exercise>;
+  supersetLetter: string | null;
+}
+
+function BlockRow({ block, exerciseMap, supersetLetter }: BlockRowProps) {
+  return (
+    <div
+      className={[
+        'rounded-xl border px-4 py-3',
+        block.type === 'superset'
+          ? 'border-accent/30 bg-accent-soft'
+          : 'border-cream-200 bg-cream-50 dark:border-cream-800 dark:bg-cream-950/40',
+      ].join(' ')}
+    >
+      {block.type === 'superset' && (
+        <span className="mb-2 inline-block text-[0.6rem] font-medium uppercase tracking-[0.2em] text-accent">
+          Superset
+        </span>
+      )}
+      <div className="flex flex-col gap-1.5">
+        {block.exercises.map((ex, i) => (
+          <PlannedRow
+            key={i}
+            planned={ex}
+            exercise={exerciseMap.get(ex.exerciseId)}
+            supersetMarker={supersetLetter ? `${supersetLetter}${i + 1}` : null}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface PlannedRowProps {
+  planned: PlannedExercise;
+  exercise: Exercise | undefined;
+  supersetMarker: string | null;
+}
+
+function PlannedRow({ planned, exercise, supersetMarker }: PlannedRowProps) {
+  const target = useMemo(() => formatTarget(planned), [planned]);
+  const name = exercise?.name ?? planned.exerciseId;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-baseline gap-2">
+        {supersetMarker && (
+          <span className="shrink-0 font-mono text-[0.7rem] font-semibold text-accent">
+            {supersetMarker}
+          </span>
+        )}
+        <span className="text-sm font-medium leading-snug text-cream-900 dark:text-cream-50">
+          {name}
+        </span>
+      </div>
+      <span
+        className={[
+          'text-xs tabular-nums text-cream-600 dark:text-cream-400',
+          supersetMarker ? 'pl-6' : '',
+        ].join(' ')}
+      >
+        {target}
+      </span>
+    </div>
+  );
+}
+
+function formatTarget(planned: PlannedExercise): string {
+  const parts: string[] = [`${planned.setCount}×`];
+  if (planned.reps) {
+    parts.push(`${planned.reps.min}–${planned.reps.max} reps`);
+  } else if (planned.durationSeconds) {
+    parts.push(
+      `${planned.durationSeconds.min}–${planned.durationSeconds.max}s`,
+    );
+  } else {
+    parts.push('—');
+  }
+  if (planned.perSide) parts.push('(each)');
+  return parts.join(' ');
+}
