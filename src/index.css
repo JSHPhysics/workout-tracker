@@ -1,26 +1,53 @@
+/* Variable fonts — bundled, no network at runtime. Pulled in once here
+   so they're available everywhere via tailwind's font-sans/font-display. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Default accent (used before a profile is picked, e.g. on the picker
+     itself): a neutral champagne. Profiles override via [data-profile]. */
+  :root {
+    --accent: 184 173 142;
+    --accent-fg: 12 10 8;
+  }
+
+  [data-profile='joshua'] {
+    --accent: 34 197 94; /* sap green */
+    --accent-fg: 12 10 8;
+  }
+
+  [data-profile='hayley'] {
+    --accent: 251 113 133; /* warm coral */
+    --accent-fg: 22 19 17;
+  }
+
   html,
   body,
   #root {
     height: 100%;
   }
 
+  html {
+    /* Crisper UI defaults for variable fonts. */
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    font-optical-sizing: auto;
+  }
+
   body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      'Segoe UI',
-      Roboto,
-      'Helvetica Neue',
-      Arial,
-      sans-serif;
+    @apply bg-cream-50 font-sans text-cream-900 dark:bg-cream-950 dark:text-cream-100;
+  }
+
+  /* Display elements lean on Fraunces' optical-sizing axis. */
+  h1,
+  h2,
+  h3 {
+    font-optical-sizing: auto;
   }
 
   /* Honour reduced-motion preferences globally. */
@@ -33,5 +60,11 @@
       transition-duration: 0.001ms !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  /* Selection picks up the active profile's accent. */
+  ::selection {
+    background: rgb(var(--accent) / 0.35);
+    color: rgb(var(--accent-fg));
   }
 }

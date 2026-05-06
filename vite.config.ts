@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Workout Tracker',
         short_name: 'Workouts',
         description: 'Personal two-profile workout tracker',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0c0a08',
+        background_color: '#0c0a08',
         display: 'standalone',
         start_url: '.',
         icons: [

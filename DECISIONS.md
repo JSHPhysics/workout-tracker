@@ -105,6 +105,57 @@ a flash of wrong theme.
 
 ---
 
+## 2026-05-06 — Visual identity: warm-editorial, profile as accent
+
+**Context.** Owner pushed back on the placeholder violet/sky picker — wants
+a personal-use aesthetic that's "modern, but stylish", not the educational
+look of the Revision Tracker. Also renamed second profile Partner →
+Hayley.
+
+**Decision.** Commit to a small but opinionated design system:
+
+- **Type.** Two variable fonts, bundled via `@fontsource-variable/*`
+  (zero network at runtime, fits the offline-first PWA brief).
+  - Body: **Inter Variable** (`font-sans`) — UI workhorse, tabular figures.
+  - Display: **Fraunces Variable** (`font-display`) — italic-leaning serif
+    with optical sizing, used for hero headlines and small editorial
+    accents (e.g. "Soon." on placeholders).
+- **Palette.** Replaced Tailwind's `slate` with a warm-neutral `cream`
+  scale (50–950). Backgrounds are a warm cream (`#faf8f3`) in light and
+  a warm near-black (`#0c0a08`) in dark — neither is pure white/black.
+- **Profile-as-accent.** Each profile owns a colour. The active profile
+  themes the entire app via CSS variables: `--accent` and `--accent-fg`
+  bound by a `[data-profile]` attribute on `<html>` (set by
+  `useActiveProfile`). Tailwind's `accent` colour reads those variables,
+  so `text-accent`, `bg-accent`, `bg-accent-soft` flow through every
+  surface. The picker stays neutral (default champagne) until a profile
+  is chosen, at which point the chrome (active tab indicator, eyebrows,
+  selection highlight) re-paints itself.
+  - Joshua: **`#22c55e`** sap green
+  - Hayley: **`#fb7185`** warm coral
+- **Iconography.** Unicode glyphs for now (◎ ☰ ↗ ✦ ⚙). Real icons
+  deferred to milestone 12 polish; we'll likely adopt Lucide.
+
+**Alternatives.**
+- A single brand accent across both profiles. Loses the immediate "this
+  is mine" cue when switching profiles, which is one of two-profile
+  design's small wins.
+- System fonts only. Cheaper, but the picker hero needed a display face
+  to feel intentional and `font-stack:` system serifs vary too much.
+- Self-host fonts manually. `@fontsource-variable/*` is npm-managed,
+  tree-shakeable, version-pinned — same outcome, less maintenance.
+
+**Consequences.**
+- Bundle grew (variable WOFFs add ~80 kB to the final build). Still
+  comfortably under the 300 kB JS budget; CSS budget unaffected.
+- Charts (Recharts, milestone 8) will need explicit colour passes that
+  reference `--accent` so they participate in profile theming.
+- The CSS-variable colour scheme means we can't use Tailwind's
+  arbitrary-value `bg-[#hex]` shorthand for the accent — must go through
+  `bg-accent` / `text-accent` etc. Documented for future contributors.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in
@@ -112,9 +163,9 @@ parentheses.
 
 - **Final repo name** *(working: `workout-tracker`)* — confirm before the
   GitHub Pages action lands (milestone 12).
-- **Colour palette and primary accent** — picker placeholders today are
-  violet (`#7c3aed`) and sky (`#0ea5e9`). Pick a real palette before
-  Progress charts render at scale (milestone 8).
+- ~~Colour palette and primary accent~~ — settled 2026-05-06; see
+  "Visual identity" entry above. Profile-as-accent: Joshua green, Hayley
+  coral, warm cream surface palette, profile-driven via CSS variables.
 - **Default plate inventory** — UK home-gym standard (1.25 / 2.5 / 5 / 10 /
   15 / 20 kg pairs) is the working assumption per SCOPE.md §6.4. Confirm
   before milestone 6 (plate calculator).

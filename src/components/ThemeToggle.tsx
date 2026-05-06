@@ -14,9 +14,8 @@ interface Props {
   className?: string;
 }
 
-// Three-pill segmented control for theme preference. Compact enough for the
-// app header and the profile picker; we'll likely promote a richer version
-// into Settings later.
+// Three-pill segmented control for theme preference. Compact enough for
+// the picker hero and the app header.
 export function ThemeToggle({ className = '' }: Props) {
   const pref = useThemePreference();
   return (
@@ -24,7 +23,7 @@ export function ThemeToggle({ className = '' }: Props) {
       role="group"
       aria-label="Theme"
       className={[
-        'inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-900',
+        'inline-flex items-center gap-0.5 rounded-full border border-cream-200/80 bg-cream-100/70 p-0.5 backdrop-blur dark:border-cream-800/80 dark:bg-cream-900/70',
         className,
       ].join(' ')}
     >
@@ -39,10 +38,10 @@ export function ThemeToggle({ className = '' }: Props) {
             aria-label={opt.label}
             title={opt.label}
             className={[
-              'flex h-8 w-8 items-center justify-center rounded-full text-sm transition',
+              'flex h-7 w-7 items-center justify-center rounded-full text-[0.85rem] transition',
               active
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                ? 'bg-white text-cream-900 shadow-soft dark:bg-cream-700 dark:text-cream-50'
+                : 'text-cream-500 hover:text-cream-900 dark:text-cream-400 dark:hover:text-cream-100',
             ].join(' ')}
           >
             <span aria-hidden>{opt.glyph}</span>

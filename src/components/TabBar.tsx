@@ -17,7 +17,7 @@ const TABS: readonly TabItem[] = [
 export function TabBar() {
   return (
     <nav
-      className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90"
+      className="sticky bottom-0 z-10 grid grid-cols-5 border-t border-cream-200/70 bg-cream-50/85 backdrop-blur dark:border-cream-800/70 dark:bg-cream-950/85"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Primary"
     >
@@ -27,17 +27,27 @@ export function TabBar() {
           to={tab.to}
           className={({ isActive }) =>
             [
-              'flex min-h-[48px] flex-col items-center justify-center gap-0.5 py-2 text-xs',
+              'group relative flex min-h-[52px] flex-col items-center justify-center gap-1 px-1 py-2 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition',
               isActive
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-slate-500 dark:text-slate-400',
+                ? 'text-accent'
+                : 'text-cream-500 hover:text-cream-800 dark:text-cream-400 dark:hover:text-cream-100',
             ].join(' ')
           }
         >
-          <span aria-hidden className="text-lg leading-none">
-            {tab.icon}
-          </span>
-          <span>{tab.label}</span>
+          {({ isActive }) => (
+            <>
+              <span aria-hidden className="text-lg leading-none">
+                {tab.icon}
+              </span>
+              <span>{tab.label}</span>
+              {isActive && (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-6 top-0 h-[2px] rounded-full bg-accent"
+                />
+              )}
+            </>
+          )}
         </NavLink>
       ))}
     </nav>
