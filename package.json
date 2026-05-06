@@ -3,6 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://jshphysics.github.io/workout-tracker/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JSHPhysics/workout-tracker.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +16,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "seed:build": "python scripts/build-seed.py"
+    "seed:build": "python scripts/build-seed.py",
+    "icons:build": "python scripts/build-icons.py"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",

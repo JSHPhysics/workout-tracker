@@ -19,3 +19,10 @@ export function useProfile(id: string | null): Profile | null | undefined {
     return (await db.profiles.get(id)) ?? null;
   }, [id]);
 }
+
+export async function setUseBodyweightForVolume(
+  profileId: string,
+  enabled: boolean,
+): Promise<void> {
+  await db.profiles.update(profileId, { useBodyweightForVolume: enabled });
+}

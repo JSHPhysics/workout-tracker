@@ -1,8 +1,12 @@
 // Audio + vibration cue used by the rest timer and interval rounds.
-// The audio is a short two-note chime synthesised with the Web Audio
-// API (no asset files; keeps the bundle small and offline-safe).
+// The rest/timer audio is a short two-note chime synthesised with the
+// Web Audio API. The celebration cue uses a real party-blower sample
+// (small enough — ~30 KB — to inline into the bundle).
+
+import partyBlowerUrl from '../assets/partyblower.mp3';
 
 let ctx: AudioContext | null = null;
+let celebrationEl: HTMLAudioElement | null = null;
 
 function getContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -95,4 +99,35 @@ export function primeAudio(): void {
   const c = getContext();
   if (!c) return;
   if (c.state === 'suspended') void c.resume();
+}
+
+/** Lazily build (and cache) the celebration <audio> element so playback
+ * latency is just a network-cached file decode. */
+function getCelebrationAudio(): HTMLAudioElement | null {
+  if (typeof window === 'undefined') return null;
+  if (celebrationEl) return celebrationEl;
+  const el = new Audio(partyBlowerUrl);
+  el.preload = 'auto';
+  el.volume = 0.85;
+  celebrationEl = el;
+  return el;
+}
+
+/** Plays the party-blower celebration sample + a short triple haptic.
+ * Called when the PR celebration modal opens. The play call follows
+ * a user gesture (the "Finish workout" tap), so autoplay policies are
+ * satisfied. */
+export function cueCelebration(): void {
+  const el = getCelebrationAudio();
+  if (el) {
+    try {
+      el.currentTime = 0;
+      // play() returns a promise; ignore rejection (e.g. autoplay
+      // blocked when triggered without a gesture during dev hot-reload).
+      void el.play().catch(() => {});
+    } catch {
+      // ignore
+    }
+  }
+  vibrate([60, 40, 60, 40, 120]);
 }

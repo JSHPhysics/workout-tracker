@@ -14,6 +14,10 @@ import type { Block } from '../types';
 
 // Pre-v2 sessions don't have `livePlan` yet — type for the upgrader.
 type V1Session = Omit<Session, 'livePlan'> & { livePlan?: Block[] };
+// Pre-v3 profiles lack the bodyweight toggle.
+type V2Profile = Omit<Profile, 'useBodyweightForVolume'> & {
+  useBodyweightForVolume?: boolean;
+};
 
 // Single Dexie instance for the app. Each Dexie table is typed via
 // `EntityTable<T, primaryKey>`; the second generic argument is the name
@@ -98,5 +102,32 @@ db.version(2)
         if (day?.blocks) livePlan = structuredClone(day.blocks);
       }
       await sessionsTable.update(s.id, { livePlan });
+    }
+  });
+
+// v3 — Profile.useBodyweightForVolume added (milestone 9). No schema
+// change to indexes; the upgrader backfills the new field to `false`
+// so existing profiles keep their previous (non-counted) behaviour
+// until the user explicitly enables it in Settings.
+db.version(3)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V2Profile[];
+    for (const p of profiles) {
+      if (typeof p.useBodyweightForVolume === 'boolean') continue;
+      await profilesTable.update(p.id, { useBodyweightForVolume: false });
     }
   });

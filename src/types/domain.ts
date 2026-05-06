@@ -65,6 +65,10 @@ export interface Profile {
   unitSystem: UnitSystem;
   activeRoutineId?: string;
   lastBackupAt?: string;
+  /** When true, bodyweight-only exercises pull the most recent
+   * BodyweightLog entry as their per-rep load (so push-ups & co
+   * actually count toward volume aggregates). */
+  useBodyweightForVolume: boolean;
   createdAt: string;
 }
 

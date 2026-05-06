@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useRoutine } from '../db/routines';
+import { forkRoutine, useRoutine } from '../db/routines';
 import { useExerciseMap } from '../db/exercises';
 import { createSession } from '../db/sessions';
 import { useActiveProfile } from '../state/activeProfile';
@@ -17,7 +17,33 @@ export function RoutineDetail() {
   const { id } = useParams<{ id: string }>();
   const routine = useRoutine(id);
   const exerciseMap = useExerciseMap();
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const navigate = useNavigate();
   const [activeWeek, setActiveWeek] = useState<number>(1);
+  const [forking, setForking] = useState(false);
+
+  const handleEdit = async () => {
+    if (!routine) return;
+    if (routine.isSeed) {
+      if (!profileId) return;
+      if (
+        !window.confirm(
+          `${routine.name} is built-in and read-only. Create an editable copy?`,
+        )
+      ) {
+        return;
+      }
+      setForking(true);
+      try {
+        const newId = await forkRoutine(routine.id, profileId);
+        navigate(`/routines/${newId}/edit`);
+      } finally {
+        setForking(false);
+      }
+    } else {
+      navigate(`/routines/${routine.id}/edit`);
+    }
+  };
 
   if (routine === null) return <Navigate to="/routines" replace />;
 
@@ -53,9 +79,19 @@ export function RoutineDetail() {
             Built-in
           </span>
         )}
-        <h1 className="font-display text-3xl font-light leading-[1.1] tracking-tight">
-          {routine.name}
-        </h1>
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="font-display text-3xl font-light leading-[1.1] tracking-tight">
+            {routine.name}
+          </h1>
+          <button
+            type="button"
+            onClick={handleEdit}
+            disabled={forking}
+            className="rounded-full border border-line px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+          >
+            {forking ? '…' : routine.isSeed ? 'Fork & edit' : 'Edit'}
+          </button>
+        </div>
         <p className="text-sm leading-relaxed text-fg-muted">
           {routine.description}
         </p>

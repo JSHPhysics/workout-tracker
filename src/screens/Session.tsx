@@ -12,11 +12,17 @@ import {
 import { useSessionSetLogs } from '../db/setLogs';
 import { useExerciseMap } from '../db/exercises';
 import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
+import { useLatestBodyweight } from '../db/bodyweight';
+import { useProfile } from '../db/profiles';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { ExercisePicker } from '../components/ExercisePicker';
+import { PRCelebration } from '../components/PRCelebration';
+import { BackupPromptModal } from '../components/BackupPromptModal';
+import { staleness } from '../components/BackupSection';
 import { RestTimerBar } from '../components/RestTimerBar';
 import { SetRow } from '../components/SetRow';
 import { useRestTimer } from '../state/restTimer';
+import type { PRAward } from '../domain/pr-detection';
 import type {
   Block,
   Exercise,
@@ -36,10 +42,14 @@ export function Session() {
   const exerciseMap = useExerciseMap();
   const defaultBar = useDefaultBarbell(session?.profileId);
   const plateInv = usePlateInventory(session?.profileId);
+  const profile = useProfile(session?.profileId ?? null);
+  const latestBw = useLatestBodyweight(session?.profileId ?? null);
   const navigate = useNavigate();
   const dismissRest = useRestTimer((s) => s.dismiss);
   const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
   const [pickerTarget, setPickerTarget] = useState<EditTarget | null>(null);
+  const [celebration, setCelebration] = useState<PRAward[] | null>(null);
+  const [backupPrompt, setBackupPrompt] = useState(false);
 
   const logsByKey = useMemo(() => {
     const map = new Map<string, SetLog>();
@@ -71,12 +81,39 @@ export function Session() {
     if (!id || busy) return;
     setBusy('finish');
     try {
-      await finishSession(id);
+      const awards = await finishSession(id);
       dismissRest();
-      navigate('/history');
+      const stale = profile
+        ? staleness(profile.lastBackupAt).severity !== 'fresh'
+        : false;
+      if (awards.length > 0) {
+        // Celebration first; backup prompt fires (if needed) on close.
+        setCelebration(awards);
+      } else if (stale) {
+        setBackupPrompt(true);
+      } else {
+        navigate('/history');
+      }
     } finally {
       setBusy(null);
     }
+  };
+
+  const closeCelebration = () => {
+    setCelebration(null);
+    const stale = profile
+      ? staleness(profile.lastBackupAt).severity !== 'fresh'
+      : false;
+    if (stale) {
+      setBackupPrompt(true);
+    } else {
+      navigate('/history');
+    }
+  };
+
+  const closeBackupPrompt = () => {
+    setBackupPrompt(false);
+    navigate('/history');
   };
 
   const discard = async () => {
@@ -178,6 +215,10 @@ export function Session() {
                     locked={sessionDone}
                     barWeight={defaultBar?.weight ?? null}
                     plateInventory={plateInv?.plates ?? null}
+                    latestBodyweight={latestBw?.weight ?? null}
+                    useBodyweightForVolume={
+                      profile?.useBodyweightForVolume ?? false
+                    }
                     onSwap={(exerciseOrder) =>
                       setPickerTarget({
                         kind: 'swap',
@@ -232,6 +273,18 @@ export function Session() {
       )}
 
       <RestTimerBar />
+
+      {celebration && (
+        <PRCelebration
+          awards={celebration}
+          exerciseMap={exerciseMap}
+          onClose={closeCelebration}
+        />
+      )}
+
+      {backupPrompt && profile && (
+        <BackupPromptModal profile={profile} onClose={closeBackupPrompt} />
+      )}
 
       <ExercisePicker
         open={pickerTarget !== null}
@@ -289,6 +342,8 @@ interface BlockCardProps {
   locked: boolean;
   barWeight: number | null;
   plateInventory: PlateInventoryEntry[] | null;
+  latestBodyweight: number | null;
+  useBodyweightForVolume: boolean;
   onSwap: (exerciseOrder: number) => void;
 }
 
@@ -302,6 +357,8 @@ function BlockCard({
   locked,
   barWeight,
   plateInventory,
+  latestBodyweight,
+  useBodyweightForVolume,
   onSwap,
 }: BlockCardProps) {
   const skipped = !!block.skipped;
@@ -360,6 +417,8 @@ function BlockCard({
             locked={locked}
             barWeight={barWeight}
             plateInventory={plateInventory}
+            latestBodyweight={latestBodyweight}
+            useBodyweightForVolume={useBodyweightForVolume}
             onSwap={() => onSwap(exIdx)}
           />
         ))}
@@ -380,6 +439,8 @@ interface ExerciseGroupProps {
   locked: boolean;
   barWeight: number | null;
   plateInventory: PlateInventoryEntry[] | null;
+  latestBodyweight: number | null;
+  useBodyweightForVolume: boolean;
   onSwap: () => void;
 }
 
@@ -395,6 +456,8 @@ function ExerciseGroup({
   locked,
   barWeight,
   plateInventory,
+  latestBodyweight,
+  useBodyweightForVolume,
   onSwap,
 }: ExerciseGroupProps) {
   if (!exercise) {
@@ -446,6 +509,8 @@ function ExerciseGroup({
               blockSkipped={blockSkipped}
               barWeight={barWeight}
               plateInventory={plateInventory}
+              latestBodyweight={latestBodyweight}
+              useBodyweightForVolume={useBodyweightForVolume}
             />
           ),
         )}

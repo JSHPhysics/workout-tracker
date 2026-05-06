@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { logSet, deleteSet, updateSetType } from '../db/setLogs';
+import {
+  deleteSet,
+  logSet,
+  updateNotes,
+  updateRpe,
+  updateSetType,
+} from '../db/setLogs';
 import { useRestTimer } from '../state/restTimer';
 import { primeAudio } from '../lib/cue';
 import { NumberStepper } from './NumberStepper';
+import { PRBadges } from './PRBadges';
 import { PlateViz } from './PlateViz';
 import { SetTypeChip } from './SetTypeChip';
 import type {
@@ -29,6 +36,13 @@ interface Props {
   barWeight: number | null;
   /** Profile's plate inventory; null while loading. */
   plateInventory: PlateInventoryEntry[] | null;
+  /** Most recent bodyweight in kg for the active profile, or null when
+   * the profile has no weigh-ins yet. Used for bodyweight-volume
+   * accounting on bodyweight-only exercises. */
+  latestBodyweight: number | null;
+  /** When true, log bodyweight-only sets with weight = latestBodyweight
+   * so they contribute to volume aggregates. */
+  useBodyweightForVolume: boolean;
 }
 
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
@@ -60,6 +74,8 @@ export function SetRow({
   blockSkipped,
   barWeight,
   plateInventory,
+  latestBodyweight,
+  useBodyweightForVolume,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isBodyweight =
@@ -82,6 +98,9 @@ export function SetRow({
   const [setType, setSetType] = useState<SetType>(
     existingLog?.setType ?? 'working',
   );
+  const [rpe, setRpe] = useState<number | null>(existingLog?.rpe ?? null);
+  const [notes, setNotes] = useState<string>(existingLog?.notes ?? '');
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -90,6 +109,8 @@ export function SetRow({
       setReps(existingLog.reps ?? defaultReps);
       setDuration(existingLog.durationSeconds ?? defaultDuration);
       setSetType(existingLog.setType);
+      setRpe(existingLog.rpe ?? null);
+      setNotes(existingLog.notes ?? '');
     }
   }, [existingLog, defaultReps, defaultDuration]);
 
@@ -103,6 +124,14 @@ export function SetRow({
     try {
       // Tap → user gesture → safe to prime / play audio later.
       primeAudio();
+      // Bodyweight-only exercises store the user's current weigh-in
+      // as `weight` when the toggle is on, so volume aggregates on
+      // push-ups/dips/etc. count for something. Falls back to no
+      // weight when there's no logged bodyweight to draw from.
+      const bodyweightLoad =
+        isBodyweight && useBodyweightForVolume && latestBodyweight !== null
+          ? { weight: latestBodyweight }
+          : {};
       await logSet({
         sessionId,
         exerciseId: exercise.id,
@@ -112,7 +141,9 @@ export function SetRow({
         setType,
         ...(isTimeBased
           ? { durationSeconds: duration }
-          : { reps, ...(isBodyweight ? {} : { weight }) }),
+          : { reps, ...(isBodyweight ? bodyweightLoad : { weight }) }),
+        ...(rpe !== null ? { rpe } : {}),
+        ...(notes.trim() !== '' ? { notes } : {}),
       });
       // Auto-start the rest timer for working / drop / failure / amrap
       // sets — warm-ups don't need a rest cue.
@@ -142,6 +173,17 @@ export function SetRow({
     if (existingLog) {
       // Persist immediately for already-logged sets.
       await updateSetType(existingLog.id, next);
+    }
+  };
+
+  const handleRpeChange = async (next: number | null) => {
+    setRpe(next);
+    if (existingLog) await updateRpe(existingLog.id, next);
+  };
+
+  const handleNotesBlur = async () => {
+    if (existingLog && notes !== (existingLog.notes ?? '')) {
+      await updateNotes(existingLog.id, notes);
     }
   };
 
@@ -237,6 +279,10 @@ export function SetRow({
       )}
       </div>
 
+      {existingLog && existingLog.prTypes.length > 0 && (
+        <PRBadges types={existingLog.prTypes} />
+      )}
+
       {showPlateViz && barWeight !== null && plateInventory !== null && (
         <PlateViz
           target={weight}
@@ -244,6 +290,123 @@ export function SetRow({
           inventory={plateInventory}
           className="mt-1 border-t border-line/60 pt-2"
         />
+      )}
+
+      <SetExtras
+        rpe={rpe}
+        notes={notes}
+        expanded={expanded}
+        onToggle={() => setExpanded((v) => !v)}
+        onRpeChange={handleRpeChange}
+        onNotesChange={setNotes}
+        onNotesBlur={handleNotesBlur}
+        disabled={blockSkipped}
+      />
+    </div>
+  );
+}
+
+interface SetExtrasProps {
+  rpe: number | null;
+  notes: string;
+  expanded: boolean;
+  onToggle: () => void;
+  onRpeChange: (value: number | null) => void;
+  onNotesChange: (value: string) => void;
+  onNotesBlur: () => void;
+  disabled: boolean;
+}
+
+const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const;
+
+function SetExtras({
+  rpe,
+  notes,
+  expanded,
+  onToggle,
+  onRpeChange,
+  onNotesChange,
+  onNotesBlur,
+  disabled,
+}: SetExtrasProps) {
+  const summary = (() => {
+    const parts: string[] = [];
+    if (rpe !== null) parts.push(`RPE ${rpe}`);
+    if (notes.trim() !== '') parts.push('· Notes');
+    return parts.join(' ');
+  })();
+
+  return (
+    <div className="-mx-1 mt-1 flex flex-col">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center justify-between rounded-lg px-1 py-1 text-[0.65rem] uppercase tracking-[0.16em] text-fg-faint transition hover:text-fg-muted"
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Hide RPE and notes' : 'Add RPE or notes'}
+      >
+        <span className="truncate">
+          {summary === '' ? (expanded ? 'Hide' : 'RPE · Notes') : summary}
+        </span>
+        <span aria-hidden className="ml-2 text-fg-faint">
+          {expanded ? '−' : '+'}
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-1.5 flex flex-col gap-2 px-1">
+          <div className="flex flex-col gap-1">
+            <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+              RPE
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {RPE_OPTIONS.map((v) => {
+                const active = rpe === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => onRpeChange(active ? null : v)}
+                    disabled={disabled}
+                    aria-pressed={active}
+                    className={[
+                      'min-h-[32px] min-w-[32px] rounded-full px-2 text-[0.7rem] font-medium tabular-nums transition',
+                      active
+                        ? 'bg-accent text-accent-fg'
+                        : 'bg-surface-soft text-fg-muted hover:bg-surface-elevated hover:text-fg',
+                      disabled ? 'cursor-not-allowed opacity-50' : '',
+                    ].join(' ')}
+                  >
+                    {v}
+                  </button>
+                );
+              })}
+              {rpe !== null && (
+                <button
+                  type="button"
+                  onClick={() => onRpeChange(null)}
+                  disabled={disabled}
+                  className="min-h-[32px] rounded-full px-2 text-[0.65rem] uppercase tracking-[0.14em] text-fg-faint transition hover:text-fg disabled:opacity-50"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+              Notes
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => onNotesChange(e.target.value)}
+              onBlur={onNotesBlur}
+              disabled={disabled}
+              rows={2}
+              placeholder="Form cue, equipment, anything"
+              className="resize-none rounded-md border border-line bg-surface px-2 py-1.5 text-xs text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none disabled:opacity-50"
+            />
+          </label>
+        </div>
       )}
     </div>
   );

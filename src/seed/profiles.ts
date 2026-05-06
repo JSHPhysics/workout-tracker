@@ -16,6 +16,7 @@ export const SEED_PROFILES: readonly Profile[] = [
     name: 'Joshua',
     accent: 'profile-josh',
     unitSystem: 'kg',
+    useBodyweightForVolume: false,
     createdAt: SEED_EPOCH,
   },
   {
@@ -23,6 +24,7 @@ export const SEED_PROFILES: readonly Profile[] = [
     name: 'Hayley',
     accent: 'profile-hayley',
     unitSystem: 'kg',
+    useBodyweightForVolume: false,
     createdAt: SEED_EPOCH,
   },
 ] as const;

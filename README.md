@@ -1,7 +1,9 @@
 # Workout Tracker
 
 A personal, single-device, two-profile workout tracker. Web/PWA, no auth, no
-backend. IndexedDB + JSON export/import for durability. Hosted on GitHub Pages.
+backend. IndexedDB + JSON export/import for durability.
+
+**Live:** [jshphysics.github.io/workout-tracker](https://jshphysics.github.io/workout-tracker/)
 
 - **Spec:** [SCOPE.md](./SCOPE.md) — authoritative; read before any major change.
 - **Operating manual:** [CLAUDE.md](./CLAUDE.md) — conventions, stack, do-not-do.
@@ -25,8 +27,18 @@ pnpm preview      # serve the build
 pnpm test         # vitest (domain modules)
 pnpm lint
 pnpm seed:build   # regenerate src/seed/strongCurves.ts from .xlsx
+pnpm icons:build  # regenerate PWA icons in public/
 ```
+
+## Deploy
+
+Pushes to `main` build and publish to GitHub Pages via
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml). The
+deploy workflow sets `BASE_PATH=/workout-tracker/` so all asset URLs
+match the project's GH Pages subpath. Local builds (no env var) keep
+the base at `/` so `pnpm preview` still works.
 
 ## Status
 
-Milestone 1 (scaffold) complete. See SCOPE.md §10 for the milestone roadmap.
+Milestones 1–12 complete. See [SCOPE.md §10](./SCOPE.md) for the roadmap and
+[DECISIONS.md](./DECISIONS.md) for decision history.

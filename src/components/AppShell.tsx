@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useProfile } from '../db/profiles';
+import { BackupNagBanner } from './BackupNag';
 import { TabBar } from './TabBar';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -52,6 +53,8 @@ export function AppShell() {
         </button>
         <ThemeToggle />
       </header>
+
+      <BackupNagBanner profile={profile} />
 
       <main className="flex-1 overflow-y-auto px-5 py-8">
         <Outlet />

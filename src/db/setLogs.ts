@@ -12,6 +12,8 @@ interface LogSetInput {
   weight?: number;
   reps?: number;
   durationSeconds?: number;
+  rpe?: number;
+  notes?: string;
   side?: 'left' | 'right' | null;
 }
 
@@ -30,6 +32,10 @@ export async function logSet(input: LogSetInput): Promise<string> {
     ...(input.durationSeconds !== undefined
       ? { durationSeconds: input.durationSeconds }
       : {}),
+    ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
+    ...(input.notes !== undefined && input.notes.trim() !== ''
+      ? { notes: input.notes.trim() }
+      : {}),
     side: input.side ?? null,
     prTypes: [] as PRType[],
     completedAt: new Date().toISOString(),
@@ -44,6 +50,24 @@ export async function deleteSet(id: string): Promise<void> {
 
 export async function updateSetType(id: string, setType: SetType): Promise<void> {
   await db.setLogs.update(id, { setType });
+}
+
+/** Set or clear RPE on an existing set log. Pass null to clear.
+ *
+ * Dexie deletes a field when the update spec carries `undefined`, but
+ * its TypeScript signatures forbid that under `exactOptionalPropertyTypes`.
+ * The cast is the documented escape hatch — see DECISIONS.md milestone 7. */
+export async function updateRpe(id: string, rpe: number | null): Promise<void> {
+  await db.setLogs.update(id, { rpe: rpe ?? undefined } as Partial<SetLog>);
+}
+
+/** Set or clear free-text notes on an existing set log. Empty string
+ * is treated as "clear". */
+export async function updateNotes(id: string, notes: string): Promise<void> {
+  const trimmed = notes.trim();
+  await db.setLogs.update(id, {
+    notes: trimmed === '' ? undefined : trimmed,
+  } as Partial<SetLog>);
 }
 
 /** All set logs for a session, ordered by completion time. */

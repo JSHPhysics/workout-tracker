@@ -10,9 +10,16 @@ import {
   useDefaultBarbell,
   usePlateInventory,
 } from '../db/equipment';
+import { setUseBodyweightForVolume, useProfile } from '../db/profiles';
+import { clearSessionData, seedSyntheticHistory } from '../db/syntheticData';
+import {
+  BackupSection,
+  staleness,
+} from '../components/BackupSection';
+import { BackupPromptModal } from '../components/BackupPromptModal';
 import { NumberStepper } from '../components/NumberStepper';
 import { PlateViz } from '../components/PlateViz';
-import type { Barbell, PlateInventoryEntry } from '../types';
+import type { Barbell, PlateInventoryEntry, Profile } from '../types';
 
 export function Settings() {
   return (
@@ -29,7 +36,194 @@ export function Settings() {
         </p>
       </header>
 
+      <Preferences />
+      <BackupHost />
       <Equipment />
+      {import.meta.env.DEV && <DeveloperTools />}
+    </section>
+  );
+}
+
+function BackupHost() {
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const profile = useProfile(profileId);
+  if (!profile) return null;
+  return (
+    <>
+      <UrgentBackupBlock profile={profile} />
+      <BackupSection profile={profile} />
+    </>
+  );
+}
+
+/** Modal-blocks the Settings page when the active profile's backup is
+ * over 30 days stale, per CLAUDE.md. The user can still dismiss
+ * (we're not jailing them out of changing other settings) but the
+ * dismissal carries a real visual hit. */
+function UrgentBackupBlock({ profile }: { profile: Profile }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  const stale = staleness(profile.lastBackupAt);
+  if (stale.severity !== 'urgent' || acknowledged) return null;
+  return (
+    <BackupPromptModal
+      profile={profile}
+      onClose={() => setAcknowledged(true)}
+    />
+  );
+}
+
+function Preferences() {
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const profile = useProfile(profileId);
+
+  if (!profileId || profile === undefined) {
+    return (
+      <section className="flex flex-col gap-3">
+        <header>
+          <h2 className="font-display text-xl font-medium tracking-tight">
+            Preferences
+          </h2>
+        </header>
+        <div className="h-16 animate-pulse rounded-2xl border border-line bg-surface-soft" />
+      </section>
+    );
+  }
+  if (!profile) return null;
+
+  const enabled = profile.useBodyweightForVolume;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <header>
+        <h2 className="font-display text-xl font-medium tracking-tight">
+          Preferences
+        </h2>
+      </header>
+      <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <label className="flex items-start justify-between gap-4">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-fg">
+              Count bodyweight in volume
+            </span>
+            <span className="text-xs text-fg-muted">
+              Push-ups, dips & co. multiply reps by your latest weigh-in
+              when totalling session volume.
+            </span>
+          </span>
+          <Toggle
+            checked={enabled}
+            onChange={(next) => void setUseBodyweightForVolume(profileId, next)}
+            ariaLabel="Count bodyweight in volume aggregates"
+          />
+        </label>
+      </article>
+    </section>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      onClick={() => onChange(!checked)}
+      className={[
+        'relative h-7 w-12 shrink-0 rounded-full transition-colors',
+        checked ? 'bg-accent' : 'bg-surface-elevated',
+      ].join(' ')}
+    >
+      <span
+        aria-hidden
+        className={[
+          'absolute top-0.5 h-6 w-6 rounded-full bg-bg shadow-soft transition-transform',
+          checked ? 'translate-x-[1.375rem]' : 'translate-x-0.5',
+        ].join(' ')}
+      />
+    </button>
+  );
+}
+
+function DeveloperTools() {
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const [busy, setBusy] = useState<'seed' | 'clear' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const seed = async () => {
+    if (!profileId || busy) return;
+    setBusy('seed');
+    setMessage(null);
+    try {
+      const count = await seedSyntheticHistory(profileId);
+      setMessage(`Seeded ${count} synthetic sessions.`);
+    } catch (err) {
+      setMessage(`Failed: ${(err as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const clear = async () => {
+    if (!profileId || busy) return;
+    if (!window.confirm('Wipe all sessions, set logs and PRs for this profile?')) {
+      return;
+    }
+    setBusy('clear');
+    setMessage(null);
+    try {
+      await clearSessionData(profileId);
+      setMessage('Cleared.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="font-display text-xl font-medium tracking-tight">
+          Developer
+        </h2>
+        <p className="text-xs text-fg-muted">
+          Dev-only utilities. Hidden in production builds.
+        </p>
+      </header>
+      <article className="flex flex-col gap-3 rounded-2xl border border-dashed border-line-strong bg-surface-soft/30 p-4">
+        <p className="text-sm text-fg-muted">
+          Replace this profile's session history with a deterministic 12-week
+          synthetic arc — handy for chart development.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={seed}
+            disabled={busy !== null || !profileId}
+            className="rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy === 'seed' ? 'Seeding…' : 'Seed synthetic history'}
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            disabled={busy !== null || !profileId}
+            className="rounded-full border border-line px-4 py-2 text-xs text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Wipe sessions'}
+          </button>
+        </div>
+        {message && (
+          <p className="text-xs text-fg-muted">{message}</p>
+        )}
+      </article>
     </section>
   );
 }

@@ -1,10 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
+import {
+  baselinesFromHistory,
+  detectPRs,
+  type PRAward,
+  type PriorBaselines,
+} from '../domain/pr-detection';
 import type {
   Block,
+  PRRecord,
+  PRType,
   PlannedExercise,
   Session,
   SessionTemplateRef,
+  SetLog,
 } from '../types';
 
 interface CreateSessionInput {
@@ -32,8 +41,106 @@ export async function createSession(input: CreateSessionInput): Promise<string> 
   return id;
 }
 
-export async function finishSession(id: string): Promise<void> {
-  await db.sessions.update(id, { completedAt: new Date().toISOString() });
+/** Finish a session: stamp completedAt, detect any PRs across the
+ * session's set logs, persist `PRRecord` rows, annotate each `SetLog`
+ * with its `prTypes`, and cache `prCount` on the session. Returns the
+ * award list so callers can fire the celebration UI. */
+export async function finishSession(id: string): Promise<PRAward[]> {
+  const completedAt = new Date().toISOString();
+  return db.transaction(
+    'rw',
+    [db.sessions, db.setLogs, db.prRecords],
+    async () => {
+      const session = await db.sessions.get(id);
+      if (!session) return [];
+
+      // Sort by the planned-position triple so PR detection sees sets in
+      // the order they were performed within each exercise. Dexie's
+      // `toArray()` returns rows in primary-key (UUID) order, which would
+      // otherwise let a heavier later set "consume" the weight PR before
+      // a lighter earlier one had a chance to register.
+      const setLogs = (await db.setLogs.where({ sessionId: id }).toArray()).sort(
+        (a, b) =>
+          a.blockOrder - b.blockOrder ||
+          a.exerciseOrder - b.exerciseOrder ||
+          a.setNumber - b.setNumber,
+      );
+
+      // Pull prior baselines per exercise referenced this session.
+      // History is "everything for this profile that isn't this session".
+      const exerciseIds = Array.from(new Set(setLogs.map((s) => s.exerciseId)));
+      const priorByExercise = new Map<string, PriorBaselines>();
+      for (const exerciseId of exerciseIds) {
+        const allHistory = await db.setLogs
+          .where({ exerciseId })
+          .filter((s) => s.sessionId !== id)
+          .toArray();
+        const sessionVolumes = computeSessionVolumes(
+          allHistory,
+          session.profileId,
+        );
+        priorByExercise.set(
+          exerciseId,
+          baselinesFromHistory(allHistory, sessionVolumes),
+        );
+      }
+
+      const awards = detectPRs({ setLogs, priorByExercise });
+
+      // Group awards per setLog so each row gets a single update.
+      const typesBySetLog = new Map<string, PRType[]>();
+      for (const a of awards) {
+        const arr = typesBySetLog.get(a.setLogId) ?? [];
+        arr.push(a.type);
+        typesBySetLog.set(a.setLogId, arr);
+      }
+
+      const now = completedAt;
+      const prRecords: PRRecord[] = awards.map((a) => ({
+        id: crypto.randomUUID(),
+        profileId: session.profileId,
+        exerciseId: a.exerciseId,
+        type: a.type,
+        value: a.value,
+        achievedAt: now,
+        sessionId: id,
+        setLogId: a.setLogId,
+      }));
+
+      if (prRecords.length > 0) await db.prRecords.bulkAdd(prRecords);
+
+      for (const [setLogId, prTypes] of typesBySetLog) {
+        await db.setLogs.update(setLogId, { prTypes });
+      }
+
+      await db.sessions.update(id, {
+        completedAt,
+        prCount: awards.length,
+      });
+
+      return awards;
+    },
+  );
+}
+
+/** Roll up per-session, per-exercise volume from a flat history array.
+ * Only working/amrap sets with both weight and reps contribute.
+ *
+ * NB: `profileId` is currently unused — kept on the signature so
+ * cross-profile filtering can land later without churn at the call site. */
+function computeSessionVolumes(
+  history: readonly SetLog[],
+  _profileId: string,
+): number[] {
+  const bySession = new Map<string, number>();
+  for (const s of history) {
+    if (s.setType !== 'working' && s.setType !== 'amrap') continue;
+    if (typeof s.weight !== 'number' || typeof s.reps !== 'number') continue;
+    if (s.weight <= 0 || s.reps <= 0) continue;
+    const v = bySession.get(s.sessionId) ?? 0;
+    bySession.set(s.sessionId, v + s.weight * s.reps);
+  }
+  return Array.from(bySession.values());
 }
 
 export async function discardSession(id: string): Promise<void> {

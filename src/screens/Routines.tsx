@@ -20,9 +20,17 @@ export function Routines() {
         <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
           The plans
         </span>
-        <h1 className="font-display text-4xl font-light leading-[1.05] tracking-tight">
-          Routines
-        </h1>
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="font-display text-4xl font-light leading-[1.05] tracking-tight">
+            Routines
+          </h1>
+          <Link
+            to="/routines/new"
+            className="rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg shadow-soft transition hover:opacity-90"
+          >
+            + Create
+          </Link>
+        </div>
         <p className="text-sm text-fg-muted">
           Built-in templates and your own. Tap one to browse.
         </p>

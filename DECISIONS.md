@@ -636,21 +636,621 @@ remains deferred per SCOPE.md §11.
 
 ---
 
+## 2026-05-06 — Milestone 7: PR detection + RPE + per-set notes
+
+**Context.** Acceptance was "PRs surface immediately on session finish;
+RPE/notes editable per set without cluttering the row." Two new pure
+domain modules (`e1rm`, `pr-detection`) plus DB-layer wiring on
+`finishSession`, plus three UI surfaces: celebration modal, per-set PR
+badges, and a row-expand affordance for RPE + notes.
+
+### e1RM: Epley, capped at 12 reps
+
+`weight × (1 + reps/30)` is the Epley formula. Returns `null` for
+non-strength rep ranges (>12) — past 10–12 reps the estimate is
+endurance noise, not strength, and surfacing a fake "1RM PR" off a 20-
+rep set would erode trust. Also returns `null` for non-positive inputs
+so callers don't have to pre-filter. Single-rep case short-circuits to
+the lifted weight (avoids fp drift). 5 tests in
+[src/domain/e1rm.test.ts](src/domain/e1rm.test.ts).
+
+### PR detection: four types, one award per (set, type)
+
+`detectPRs` walks the session's qualifying set logs (working/AMRAP only,
+both weight and reps required) and emits one award per achievement.
+Four types per SCOPE.md §7.7:
+- **weight** — heaviest weight ever lifted on this exercise (any reps).
+- **reps_at_weight** — more reps at a weight you've already hit before.
+  Crucially, *only* awarded when the prior reps-at-this-weight count is
+  > 0 — otherwise it's a fresh weight and the `weight` PR already
+  covers it. This avoids double-celebrating "first ever 60×5" as both
+  a weight PR and a reps PR.
+- **e1rm** — best Epley estimate. Set after set, the running best
+  inside a single session is tracked so multiple ascending sets each
+  award their own PR.
+- **session_volume** — total kg·reps for this exercise across the
+  whole session, beating the previous per-session best. One award per
+  exercise, attached to the heaviest qualifying set so the PR badge
+  surfaces somewhere visible.
+
+Multiple PRs in one ascending session (100×5 → 110×5 → 120×3) all
+surface — the in-session running best updates after each award. 11
+tests in [src/domain/pr-detection.test.ts](src/domain/pr-detection.test.ts).
+
+### Detection runs in `finishSession`, sorted by plan position
+
+Wired into the same Dexie transaction as the `completedAt` stamp:
+1. Load this session's set logs.
+2. **Sort by `[blockOrder, exerciseOrder, setNumber]`.** Dexie's
+   `toArray()` returns rows in primary-key (UUID) order. Without the
+   sort, `detectPRs` could see an exercise's heaviest set first and
+   silently absorb the intermediate weight PRs. Caught during
+   end-to-end verify; regression-tested in
+   [pr-detection.test.ts](src/domain/pr-detection.test.ts) under
+   "respects the input order".
+3. Build per-exercise `PriorBaselines` from the profile's full prior
+   history (excluding this session).
+4. Run `detectPRs`, persist `PRRecord` rows, annotate each `SetLog`
+   with its `prTypes`, cache `Session.prCount`.
+
+`finishSession` returns the award list so the screen can drive the
+celebration modal without an extra round trip to Dexie.
+
+### RPE/notes: Dexie typing escape hatch
+
+Clearing an optional field in Dexie means writing `undefined`, but
+under TS `exactOptionalPropertyTypes: true` Dexie's `UpdateSpec` rejects
+that union member. The two `update*` helpers in
+[src/db/setLogs.ts](src/db/setLogs.ts) cast the spec to
+`Partial<SetLog>` at the boundary — narrow, documented, and the only
+place we lie to the type system.
+
+### UI: celebration modal + PR badges + RPE/notes affordance
+
+- **`PRCelebration`** — full-screen dialog with the warm-editorial
+  confetti animation (60 hsl-warm pieces falling 1.6–3 s). Honours
+  `prefers-reduced-motion` by skipping the confetti entirely. Headline
+  picks from "Single-rep glory." / "Stacked it." / "On fire." based on
+  award count. Awards group by exercise, each rendered as a small
+  accent chip with the type label and value. Single primary "Nice" CTA
+  navigates on close.
+- **`PRBadges`** — pill row under the SetRow (between plate viz and
+  the RPE affordance). Only renders when the set has `prTypes`; visible
+  in both the live and read-only session views.
+- **`SetExtras`** — collapsed row by default with summary text
+  ("RPE 8 · Notes" if either is set, "RPE · Notes" otherwise). Tap to
+  expand. RPE picker is 9 chips (6 → 10, 0.5 step) + a Clear; notes
+  is a 2-row textarea that persists on blur. Per-set RPE/notes are
+  written immediately to Dexie when the row is already logged, so
+  there's no Save action to forget.
+
+### Things deferred
+
+- **Per-set notes search** — no UI yet; notes are visible inside the
+  expanded row only. Add to History/Progress later if it proves useful.
+- **PR record list view** — `prRecords` table is populated and
+  queryable (`[profileId+exerciseId+type]` index) but no Progress-page
+  surface yet. Lands with milestone 8 (charts).
+- **Confetti tuning per palette** — current hue range (20–80) reads
+  warm against both Joshua green and Hayley coral. Revisit if Hayley
+  finds it clashes once she lives with it.
+
+---
+
+## 2026-05-06 — Milestone 8: History + progress charts
+
+**Context.** Acceptance was "all charts render with seed of synthetic
+test data." Two screens get rebuilt (History, Progress), two new
+domain modules (`streak`, `volume`), one synthetic-data utility, one
+read-side query layer.
+
+### Synthetic data over a check-in fixture
+
+Charts need *months* of data to look like anything, but we don't want
+fixtures committed to the repo. The dev-only "Seed synthetic history"
+button in Settings (gated on `import.meta.env.DEV`) wipes the active
+profile's session/setLog/PR rows and rebuilds a deterministic 12-week
+arc — Mon/Wed/Fri pattern, 4 routine labels rotating, 6 exercises
+covering glutes/quads/hamstrings/back/chest, weights ramping
++1.25–2.5 kg/week, RPE jitter from a seeded LCG. Backdates `startedAt`
++ `completedAt` + per-set `completedAt` so the heatmap and trend
+charts read correctly.
+
+Scoped to one profile so the partner's data isn't trashed. Replays
+through the real `finishSession` so PR detection actually fires —
+gives synthetic-day badges + populates `prRecords` for the timeline.
+
+### Streak domain: timezone-aware
+
+Local-day rollover not UTC, per SCOPE §7.8. `localDateKey` projects
+each ISO timestamp via `Intl.DateTimeFormat('en-CA', { timeZone })`
+to YYYY-MM-DD; the rest is set arithmetic. Current streak counts
+backwards from today, but doesn't break until a full local day passes
+without a session — i.e. if you trained yesterday and it's now 14:00
+today without a session, your streak is still alive. 11 tests in
+[src/domain/streak.test.ts](src/domain/streak.test.ts).
+
+### Volume domain + secondary-muscle weighting (closed open question)
+
+Settled the "secondary muscles at what weight?" open question at
+**0.5×**. RP / Mike Israetel's MEV/MRV framework and Greg Nuckols'
+volume-landmarks work both default to 0.5; reasonable middle ground
+between "ignore them entirely (0×)" and "count them fully (1×)".
+Exposed as `SECONDARY_MUSCLE_WEIGHT` constant + optional arg on
+`volumeByMuscle` so the Settings UI can override later without a
+domain rewrite. Drop and failure sets count toward volume; only
+warmups are excluded (matches PR detection's working/AMRAP scope plus
+"work that happened" for drop/failure). 14 tests.
+
+### Read-side query layer in `src/db/history.ts`
+
+Three hooks:
+- `useProfileSessionSummaries` — sessions for a profile (newest first)
+  with cached roll-ups: total volume, prCount, set count, sorted set
+  logs. The hook does the join + sort once so list rows don't each
+  fire a follow-up query.
+- `useProfilePRRecords` — PR records, newest first. Used by the
+  PR timeline.
+- `useExerciseHistory` — all set logs for one exercise, sorted
+  ascending. Backbone of the per-exercise drilldown.
+
+Set logs aren't directly indexed by profileId (they're scoped via
+their session), so the per-exercise query joins through
+`db.sessions.where({ profileId })` first. Acceptable at our data
+volume; revisit if a profile crosses ~50k set logs.
+
+### History: 12-week heatmap (closed open question)
+
+Settled at 12 weeks fixed per SCOPE §6.10 — full-year reads tiny on
+mobile and 12 weeks matches the typical training cycle. The
+`CalendarHeatmap` component renders a 7×N grid (Mon-anchored rows,
+oldest column left), shaded by session count with a 4-step intensity
+ramp (`bg-surface-soft` → `bg-accent`). Today's cell gets an
+accent ring. Cells are tappable buttons (route hookup deferred —
+session-by-date isn't a top-level path yet).
+
+Sessions list groups by ISO week (Monday-anchored) with per-week
+totals (sessions / PRs / volume). Each row shows date, time, plan
+name, duration, total volume, set count, and a star-pill PR count
+badge.
+
+### Progress: stat strip + 5 surfaces + range filter
+
+- **Stat strip**: streak (current + best), lifetime sessions,
+  lifetime tonnage, lifetime training time. 2×2 grid on mobile, 1×4
+  on tablet.
+- **Range filter**: 4w / 12w / 6m / All as a pill row at the top;
+  applies to PR timeline, drilldown, and both volume charts. Uses
+  cutoff in days (28 / 84 / 182 / null).
+- **PR timeline**: filtered records, capped at 12 with a "+ N more"
+  footer. Tap → session.
+- **Per-exercise drilldown**: defaults to the exercise with the most
+  working sets; picker swaps. Three Recharts line charts (e1RM, top
+  set, volume per session) + a rep-range hit-rate readout (matches
+  planned reps from `livePlan` against logged reps for working/AMRAP
+  sets).
+- **Volume by muscle**: horizontal bar chart, 0.5× secondary
+  weighting, distinct hue per muscle.
+- **Volume by routine**: stacked weekly bars, one stack per
+  `planName` label. Hand-picked palette so colours stay legible
+  against both profile accents.
+
+### Tailwind RGB triplets vs Recharts SVG
+
+Theme tokens are stored as RGB triplets (`34 197 94`) so Tailwind
+can compose them with alpha via `rgb(var(--accent) / 0.5)`. SVG
+attributes ignore CSS parsing and won't accept a bare triplet —
+`stroke="var(--accent)"` resolves to `stroke="34 197 94"` and the
+line silently disappears. Centralised a `tk(name, alpha?)` helper at
+the top of [Progress.tsx](src/screens/Progress.tsx) that wraps with
+`rgb(...)`; use it for every Recharts colour prop. Caught in browser
+verify when only the dots rendered, no lines.
+
+### Bundle size
+
+Recharts is the heavy dependency. Production build comes in at
+~805 kB raw / ~223 kB gzipped — comfortably under SCOPE §8's 300 kB
+gzipped budget (relaxed from 250 kB specifically to accommodate
+Recharts).
+
+### Things deferred
+
+- **Bodyweight chart** — own milestone (9), needs the bodyweight log
+  table populated first.
+- **Calendar cell → session navigation** — heatmap cells are
+  buttons but currently no-op; a "session-by-date" route lands when
+  there's a real use case.
+- **Per-exercise drilldown empty states** — picker shows only
+  exercises with working sets, so no empty case in normal flow;
+  free-session-only profiles will see the "log working sets" hint.
+- **Hayley palette tuning for muscle colours** — current hue map is
+  hand-picked for the warm-editorial Joshua palette. Some colours
+  may want adjusting against the pink Hayley theme. Revisit when
+  she's lived with it.
+
+---
+
+## 2026-05-06 — Milestone 9: Bodyweight log
+
+**Context.** Acceptance was "can log weight, view trend, optional
+integration with bodyweight exercises". One Dexie schema bump, one
+domain helper, two UI components, a Settings toggle, a Body sub-tab
+on Progress, and a small wiring change in the session flow.
+
+### One weigh-in per local day (upsert semantics)
+
+`upsertBodyweight` keys on `[profileId+date]`. Re-saving today's
+weight overwrites the existing row instead of appending — matches
+how a person actually thinks about their weight ("Tuesday's
+weigh-in"), avoids cluttering the chart with intra-day noise, and
+makes the "Today's weight" card simple: it just looks up
+`logs.find(l => l.date === today)` and switches the CTA between Save
+and Update.
+
+### Rolling-average overlay needs ≥ 2 points
+
+`rollingAverage` returns `null` for a window that contains only one
+sample. Avoids drawing a misleading "smoothed" line that's actually
+just the raw weight repeated. Sparse weigh-ins (one per week) won't
+get an overlay; daily logging activates it. Trade-off intentional —
+a 7-day average over 1 sample is meaningless. 5 tests in
+[src/domain/bodyweight.test.ts](src/domain/bodyweight.test.ts).
+
+### Bodyweight-volume integration: log-time write, not derived
+
+The toggle "Count bodyweight in volume" plumbs through SessionScreen
+→ BlockCard → ExerciseGroup → SetRow. When ON and the exercise is
+bodyweight-only (`measurementType === 'bodyweight_reps' &&
+!usesBarbell`) and a weigh-in exists, the SetRow writes
+`weight: latestBodyweight` on the SetLog at tick time.
+
+Considered making `setVolume()` smarter (read profile + exercise +
+latest bw inside the domain layer), but that fans out the dependency
+graph for every volume call site. The log-time approach keeps the
+domain layer pure: `setVolume` still does `weight × reps`, the
+integration is a one-line concern at the entry point. The cost is
+that toggling the setting later doesn't retroactively re-weight old
+logs — accepted: the user toggles this once during onboarding, not
+mid-history.
+
+PR detection sees the bodyweight-as-weight too. In practice this
+doesn't fire false PRs because each log carries the *current* weigh-in,
+so subsequent sets at a fluctuating bw don't beat the prior — and the
+"weight PR" the first time you log a push-up is genuinely "you did
+push-ups at 75 kg for the first time," which is fine.
+
+### Schema: Dexie v3, additive
+
+Added `Profile.useBodyweightForVolume: boolean`. v3 upgrader backfills
+existing profiles to `false` so behaviour is unchanged on upgrade.
+Seed profiles set the field explicitly. No new indexes — the
+bodyweight log table existed since v1.
+
+### Sub-tab vs separate route
+
+SCOPE §6.12 calls Body a sub-tab of Progress. Built it as an in-page
+toggle (Charts / Body) below the stat strip rather than a new route
+— keeps the lifetime stat strip relevant to both views and shaves
+one layer of nav. Future: a `/progress/body` deep link if we want
+the URL to remember the choice.
+
+### Things deferred
+
+- **Bodyweight CSV import** — manual entry only. Lands with the
+  backup/restore JSON format (milestone 10) which already covers
+  `bodyweightLogs`.
+- **Per-set bodyweight override** — currently uses
+  `latestBodyweight` for every bodyweight set in the session. A
+  serious user might want "I weighed myself this morning, use *that*
+  for these sets" — defer until requested.
+- **Time-based bodyweight exercises** (e.g. plank weighted by bw) —
+  out of scope; planks are time only, no rep count to multiply.
+- **"Use 7-day avg instead of latest weigh-in"** — could be a tertiary
+  toggle if daily weighers prefer a smoothed value; not adding until
+  Hayley/I actually weigh daily.
+
+---
+
+## 2026-05-06 — Milestone 10: Backup / restore
+
+**Context.** Acceptance was "wipe IndexedDB → restore → identical
+state, PRs recomputed correctly." Three pieces: a versioned JSON
+envelope, FS Access auto-write with download fallback, and a tiered
+nag system (header banner / Settings modal block / post-session
+prompt).
+
+### Versioned envelope, magic string, schemaVersion gate
+
+The JSON file carries:
+- `magic: "workout-tracker.backup"` — instant identification at a
+  glance and as a parser short-circuit.
+- `schemaVersion: 1` — bumps on any breaking change to the data shape;
+  the parser refuses files newer than the running app.
+- `exportedAt`, optional `appVersion`, optional `profileId`.
+- `data: { profiles, exercises, routineTemplates, sessions, setLogs,
+  barbells, plateInventory, bodyweightLogs, prRecords }`.
+
+`migrateBackup` is a no-op today; v2 will chain step-by-step
+migrations here. 7 tests in
+[src/domain/backup-format.test.ts](src/domain/backup-format.test.ts).
+
+### PR recompute on import (SCOPE-mandated)
+
+PR records are **derived state**. The exporter writes them for
+diagnostics, but the importer discards them and re-derives from the
+imported set logs via `recomputePRsFromSetLogs`. This:
+- Walks sessions chronologically (by earliest log's completedAt).
+- Sorts each session's logs by `[blockOrder, exerciseOrder, setNumber]`
+  before passing to `detectPRs` (same canonical order as
+  `finishSession` — see milestone 7).
+- Maintains incremental per-exercise baselines so each session sees
+  only its prior history, not future logs (subtle but critical: a
+  naive "for each session, finishSession()" replay would treat future
+  sessions as prior history and silently drop most PRs).
+- Patches `profileId` on each new `PRRecord` from the
+  session→profile map after the fact, since the recompute helper
+  doesn't have profile context.
+
+Verified end-to-end: clean synthetic seed → 146 PRs → export → wipe
+→ import → 146 PRs, same set, same values.
+
+### Per-profile vs full-DB exports
+
+`buildBackup({ profileId })` scopes profile-owned rows but always
+includes the shared exercise + routine library so the file restores
+to a working app. Without `profileId` it dumps everything (used
+for "full-database" backups during dev). Filename reflects scope:
+`workout-tracker-joshua-2026-05-06.json`.
+
+### Storage I/O: FS Access first, download fallback
+
+[src/lib/backupIo.ts](src/lib/backupIo.ts) handles all browser I/O:
+- **`saveBackup`**: tries the persisted FS Access handle silently,
+  re-prompts for permission if denied, falls back to download.
+- **`chooseAutoBackupFile`**: one-time picker; the handle persists in
+  a tiny dedicated IndexedDB (`workout-tracker-meta`, store
+  `fs-handles`) so subsequent saves are silent. Kept separate from
+  the main app DB so handle blobs never accidentally leak into the
+  JSON envelope.
+- **`readBackupFile`**: FS Access picker on supported browsers,
+  hidden `<input type="file">` everywhere else.
+
+FS Access ships in Chromium-family desktop browsers; Safari /
+Firefox / iOS get the download fallback. Detected via
+`window.showSaveFilePicker` presence; UI hides the "Set auto-backup
+file" button when unavailable.
+
+### Stale-backup nags: three tiers
+
+Per CLAUDE.md "Backup & durability":
+- **Header banner** when staleness > 7 days. Subtle on the surface
+  cards but unmissable across every screen via `<AppShell>`.
+- **Modal block on Settings** when staleness > 30 days. Reuses the
+  same `BackupPromptModal` component as the post-session prompt;
+  user can dismiss but the visual interruption is intentional.
+- **Post-session prompt** when staleness > 7 days, fired right after
+  the PR celebration closes (or instead of the celebration when no
+  PRs landed). Most natural moment — they're already in "I just did
+  a thing" mode.
+
+The shared `staleness(lastBackupAt)` helper gives a tagged severity
+(`fresh | stale | urgent`) so component code reads cleanly.
+
+### `Profile.lastBackupAt`
+
+Schema field already existed (since milestone 1). `markBackedUp`
+stamps every profile included in the export — per-profile when
+scoped, every profile when full-DB. Stamping clears all three nag
+tiers immediately.
+
+### Things deferred
+
+- **JSON ZIP / encryption** — backup is plaintext JSON. Fine for a
+  personal local-only tool; revisit if ever cloud-syncing.
+- **Auto-backup-on-finish** — toggle could fire `saveBackup` from
+  the post-session flow without user interaction. Tempting but adds
+  a write per workout; defer until the FS Access handle is widely
+  in use.
+- **Backup-history list** — currently the user knows what they have
+  by looking at their downloads folder. A "show me what's been
+  backed up" UI would need stored manifest entries.
+- **Restore preview** — would be nice to show "this file contains
+  X sessions, Y PRs, Z bodyweight entries" before wiping. Today the
+  user gets a confirm dialog with the filename only.
+
+---
+
+## 2026-05-06 — Milestone 11: Custom routine builder
+
+**Context.** Acceptance was "can build a 4-week routine from scratch
+and run it." One new screen (RoutineEditor), CRUD on db/routines.ts,
+fork-from-seed flow, two new routes.
+
+### Working-copy editor, not live-mutating
+
+The editor holds a local `RoutineDraft` in React state and only writes
+to Dexie on Save. Cancel discards. This:
+- Avoids a "every keystroke is a Dexie write" performance footgun.
+- Makes Cancel meaningful — partial work doesn't leak to other tabs
+  via `useLiveQuery`.
+- Keeps `updatedAt` truthful — bumps once per save, not once per
+  keystroke.
+
+The trade-off: navigating away mid-edit silently drops work. Acceptable
+for a single-device personal tool; if it ever grates, an autosave-to-
+draft approach is a localized change.
+
+### Seeds are read-only; "Edit" forks
+
+CLAUDE.md "Built-in routines are read-only. Editing prompts to fork."
+On a seed routine, the detail page shows **Fork & edit** (instead
+of **Edit**). Clicking it `confirm()`s, deep-clones the routine via
+`forkRoutine`, then routes to `/routines/{newId}/edit`. The fork
+keeps `description` but renames to `"<Original> (copy)"` so the user
+can tell them apart in the list immediately. The clone uses
+`structuredClone(weeks)` so subsequent edits don't bleed back.
+
+The editor itself defends against accidental seed-edit by redirecting
+to the detail page if it ever lands on a seed (e.g. via a shared URL).
+
+### Per-block edit affordances
+
+Per-block: type chip (Single / Superset), up/down arrows when there's
+somewhere to move, Remove. Per-exercise: tap the name to swap (re-
+opens the picker), set count / rep range / rest seconds steppers, or
+duration range for time-based exercises. Removing the last exercise
+in a block leaves the block (with "No exercises yet.") rather than
+auto-deleting it — gives the user a beat to add an alternative
+before committing.
+
+### Defaults that match real workouts
+
+- New custom routine starts with one week (Day 1 workout / Day 2
+  rest) so the editor isn't a blank canvas.
+- Adding a workout day picks the next free letter (A/B/C…) so the
+  user doesn't have to think about labels.
+- Fresh planned exercise: 3 sets × 8–12 reps × 90s rest (or the
+  exercise's `defaultRestSeconds`). Time-based: 3 × 30–60s. These
+  match the common hypertrophy default; tweaking them per slot is
+  cheap.
+
+### Two routes, one component
+
+- `/routines/new` — `isNew=true` path
+- `/routines/:id/edit` — load + edit existing
+- Both render `<RoutineEditor>`; param-presence picks the path.
+  Cleaner than a single `/routines/edit?id=...` query-param route
+  because React Router params reach the component cleanly.
+
+### exactOptionalPropertyTypes friction
+
+Conditional `onMoveUp` / `onMoveDown` props on `<BlockEditor>` can't
+be `() => void | undefined` under `exactOptionalPropertyTypes` — TS
+demands the property either be present-with-a-fn or omitted. Spread
+`{...(condition ? { onMoveUp: ... } : {})}` is the documented
+escape hatch. Same trick used a couple of times now (ExercisePicker
+in milestone 4, here in milestone 11).
+
+### Things deferred
+
+- **Drag-to-reorder days / blocks** — currently up/down arrows for
+  blocks; days are remove-and-re-add. Touch-drag reordering needs a
+  proper library (or a careful gesture impl) and isn't worth it for
+  a tool with ~10 items per day.
+- **Warmups / activations editor** — `DayTemplate.warmups[]` and
+  `activations[]` exist on the type but the editor doesn't surface
+  them. Strong Curves seed uses them descriptively; revisit if anyone
+  edits a routine that needs them.
+- **Per-exercise notes** — `PlannedExercise.notes` exists; not yet
+  in the editor. Will land alongside the warmups editor.
+- **Routine import / share** — JSON copy-paste between profiles or
+  users. Backup envelope already covers per-profile export; a
+  routine-only export would be a nice ergonomic.
+
+---
+
+## 2026-05-06 — Milestone 12: Polish + deploy
+
+**Context.** Acceptance was "Lighthouse PWA ≥ 95, deployed and
+installable." Final pass: error boundary, PWA icons, base-path-aware
+Vite config, GitHub Actions deploy workflow.
+
+### Error boundary
+
+[src/components/ErrorBoundary.tsx](src/components/ErrorBoundary.tsx)
+wraps the whole app inside `BrowserRouter` so a crash on any screen
+falls back to a "We hit a snag" card. Two recovery paths:
+- **Try again** clears the boundary state — works for transient
+  render bugs (e.g. a stale `useLiveQuery` reading a row that was
+  just deleted).
+- **Reload app** hard-refreshes — clears Zustand state too.
+
+The fallback explicitly tells the user *"your data is fine — IndexedDB
+is intact"* because the obvious fear when a workout app crashes
+mid-session is "did I lose my logs?". Console-prints the error +
+component stack for bug-report copy/paste; no remote telemetry.
+
+### PWA icons
+
+Hand-rendered the brand barbell mark to PNG via
+[scripts/build-icons.py](scripts/build-icons.py) using PIL. Outputs
+`pwa-192x192`, `pwa-512x512`, `pwa-maskable-512x512` (with 10%
+safe-zone padding so the mark isn't clipped by Android's adaptive
+icon mask), and `apple-touch-icon` (180×180 for iOS home screen).
+Single source of truth for the mark — re-runnable via
+`pnpm icons:build`.
+
+Manifest gets all three PWA icons + the maskable purpose. Apple
+needs the separate touch-icon link in `index.html` since iOS
+ignores the manifest icon list for the home screen.
+
+### Base path via env var
+
+GitHub Pages serves project sites at `/workout-tracker/`. Hard-coding
+that into Vite breaks `pnpm preview` and any future custom domain.
+Solution: `BASE_PATH` env var read by `vite.config.ts`. The deploy
+workflow sets `BASE_PATH=/workout-tracker/`; locally and in preview
+it stays `/`. The PWA manifest's `scope` and `start_url` mirror the
+same value so installability works under either base.
+
+Read via `globalThis as { process?: ... }` to avoid pulling in
+`@types/node` (we're a frontend project — Node types would also let
+through `process.env` in app code, which would be a footgun).
+
+### Deploy workflow
+
+`.github/workflows/deploy.yml`: checkout → pnpm install (frozen
+lockfile) → run unit tests → build with `BASE_PATH=/workout-tracker/`
+→ upload-pages-artifact → deploy-pages. Uses
+`concurrency: { group: pages, cancel-in-progress: true }` so a fast
+follow-up commit cancels the in-flight build.
+
+Tests run before the build so a broken commit can't deploy. CI uses
+`pnpm test --run` (one-shot, no watch) and the same Node 20 LTS we
+use locally.
+
+### Final repo (closed open question)
+
+Settled at **JSHPhysics/workout-tracker**, served at
+https://jshphysics.github.io/workout-tracker/. README and
+package.json `homepage` + `repository` fields point there.
+
+### Things deferred
+
+- **Manual chunk splitting** — Vite warns about the 800 KB Recharts-
+  containing bundle. Could split charts off as a lazy-loaded chunk
+  for the Progress screen, but it'd add a flash on tab-in. Worth
+  revisiting if the gzipped size ever drifts past the SCOPE 300 KB
+  budget.
+- **Lighthouse audit run** — config is set up to score well (manifest,
+  icons, theme-color, viewport, SW with offline fallback) but I
+  haven't run Lighthouse against the deployed URL since the deploy
+  hasn't actually run yet. First push to main will tell us.
+- **Custom domain** — `BASE_PATH=/` would work straight away if we
+  ever point a domain at the GH Pages site.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in
 parentheses.
 
-- **Final repo name** *(working: `workout-tracker`)* — confirm before the
-  GitHub Pages action lands (milestone 12).
+- ~~Final repo name~~ — settled 2026-05-06; **JSHPhysics/workout-tracker**.
+  Lives at https://jshphysics.github.io/workout-tracker/. Vite `base` is
+  set via the `BASE_PATH=/workout-tracker/` env var in the GH Actions
+  deploy workflow; locally and in `pnpm preview` the base stays `/`.
 - ~~Colour palette and primary accent~~ — settled 2026-05-06; see
   "Visual identity" entry above. Profile-as-accent: Joshua green, Hayley
   coral, warm cream surface palette, profile-driven via CSS variables.
 - ~~Default plate inventory~~ — settled 2026-05-06; UK home-gym
   (4× 20 / 2× 15 / 4× 10 / 2× 5 / 4× 2.5 / 4× 1.25 kg) plus Olympic
   20 kg + Women's 15 kg bars. See "Milestone 6" entry above.
-- **Volume-by-muscle weighting for secondary muscles** — primary at 100%;
-  secondary at 50%? 33%? 0%? Need by milestone 8.
+- ~~Volume-by-muscle weighting for secondary muscles~~ — settled
+  2026-05-06; secondary muscles count at **0.5×** the working volume.
+  Most strength-coaching literature uses 0.5× as the default (RP / Mike
+  Israetel's MEV/MRV framework, Greg Nuckols' volume-landmarks work).
+  Configurable in Settings later if it doesn't feel right.
 - **Auto-warmup heuristic threshold and on/off default** — SCOPE.md §7.6
   suggests `< 60%` of session top set. Need by milestone 7.
 - **Per-exercise barbell override** — currently deferred per SCOPE.md §11;
@@ -658,5 +1258,7 @@ parentheses.
   partner's training (different bar weight) materially differs.
 - **Third built-in template (PPL?)** — SCOPE.md §12. Decide before
   milestone 11 (custom routine builder); affects how forking presents.
-- **Calendar heatmap default range** — 12 weeks vs full year. Need by
-  milestone 8.
+- ~~Calendar heatmap default range~~ — settled 2026-05-06; **12 weeks
+  fixed** per SCOPE §6.10. A full-year heatmap reads tiny on mobile
+  and the 12-week window matches the typical training cycle. Drill
+  into a session by tapping; longer trends live on the Progress charts.
