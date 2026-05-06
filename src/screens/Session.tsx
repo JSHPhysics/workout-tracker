@@ -13,7 +13,9 @@ import { useSessionSetLogs } from '../db/setLogs';
 import { useExerciseMap } from '../db/exercises';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { ExercisePicker } from '../components/ExercisePicker';
+import { RestTimerBar } from '../components/RestTimerBar';
 import { SetRow } from '../components/SetRow';
+import { useRestTimer } from '../state/restTimer';
 import type {
   Block,
   Exercise,
@@ -31,6 +33,7 @@ export function Session() {
   const setLogs = useSessionSetLogs(id);
   const exerciseMap = useExerciseMap();
   const navigate = useNavigate();
+  const dismissRest = useRestTimer((s) => s.dismiss);
   const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
   const [pickerTarget, setPickerTarget] = useState<EditTarget | null>(null);
 
@@ -65,6 +68,7 @@ export function Session() {
     setBusy('finish');
     try {
       await finishSession(id);
+      dismissRest();
       navigate('/history');
     } finally {
       setBusy(null);
@@ -83,6 +87,7 @@ export function Session() {
     setBusy('discard');
     try {
       await discardSession(id);
+      dismissRest();
       navigate('/today');
     } finally {
       setBusy(null);
@@ -219,6 +224,8 @@ export function Session() {
           </div>
         </div>
       )}
+
+      <RestTimerBar />
 
       <ExercisePicker
         open={pickerTarget !== null}

@@ -8,6 +8,7 @@ import { Routines } from './screens/Routines';
 import { RoutineDetail } from './screens/RoutineDetail';
 import { Session } from './screens/Session';
 import { Settings } from './screens/Settings';
+import { Timers } from './screens/Timers';
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/routines" element={<Routines />} />
         <Route path="/routines/:id" element={<RoutineDetail />} />
         <Route path="/session/:id" element={<Session />} />
+        <Route path="/timers" element={<Timers />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

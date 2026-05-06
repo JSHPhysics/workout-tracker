@@ -460,6 +460,97 @@ add and swap (a `title` prop differentiates the header eyebrow).
 
 ---
 
+## 2026-05-06 — Milestone 5: Rest timer + standalone Timers
+
+**Context.** Acceptance was "timer auto-starts on set tick and survives
+screen lock; EMOM/Tabata works." Two surfaces ship together:
+- **Rest timer** — sticky bar inside Session, auto-armed on each tick
+- **Standalone Timers** screen — stopwatch / countdown / interval
+  (covering EMOM and Tabata via presets)
+
+### Wall-clock deadlines, not decremented counters
+
+Both timers store a wall-clock `deadline = Date.now() + remainingMs`,
+not "seconds left" decremented every tick. The render loop computes
+`remaining = deadline − Date.now()` each frame, so backgrounding the
+tab doesn't desync the timer. When paused, we stash `pausedRemaining`
+(ms) instead — resume re-bases the deadline against the new `Date.now()`.
+
+A `visibilitychange → visible` listener in the bar pokes `setNow` on
+return so the ring snaps to the right value immediately rather than
+waiting for the next 100ms tick.
+
+### Rest-timer state lives in Zustand
+
+`useRestTimer` is the canonical "ephemeral active timer" Zustand
+mention from CLAUDE.md. The bar subscribes; `SetRow.tick()` calls
+`startRest(seconds, label)` after persisting the SetLog. Rest-seconds
+resolution order:
+1. `planned.restSeconds` (per-slot override; not yet user-editable)
+2. `exercise.defaultRestSeconds` (from seed metadata)
+3. `GLOBAL_DEFAULT_REST_S = 90` (settings UI in milestone 12)
+
+Warm-up sets don't auto-start a rest — `if (setType !== 'warmup')`
+gates the call.
+
+### Wake Lock + Page Visibility recovery
+
+`src/lib/wakeLock.ts` is a thin wrapper around `navigator.wakeLock`.
+The hook `useWakeLock(active)` acquires while `active` is true and
+releases on cleanup. Browsers auto-release wake locks when the tab
+hides; the wrapper re-acquires on `visibilitychange → visible`
+provided the consumer still wants the lock. Wake locks are held for
+the **rest period only** (not the whole session) so the screen can
+sleep between exercises. Falls back to a no-op when the API is
+missing (older Safari, Firefox).
+
+### Audio + vibration cue
+
+`src/lib/cue.ts` synthesises chimes via Web Audio (no asset files,
+keeps the bundle offline-clean). `cueRestEnd` plays a two-note
+ascending chime + a `[110, 60, 140]` vibration burst; `cueTick` is
+a single beep used for interval round transitions; `cueIntervalEnd`
+is a longer triple-note pattern.
+
+`primeAudio()` is called from inside `SetRow.tick()` so the
+`AudioContext` is created during a user gesture (Safari requires
+this to ever play sound). Settings UI for audio/vibration toggles
+defers to milestone 12; defaults are on.
+
+### Bar layout vs the existing Discard/Finish bar
+
+The session screen already had a sticky Discard/Finish bar at the
+bottom. The rest bar floats above it (offset = `safe-area-inset-bottom
++ 5rem`) so both stay reachable simultaneously. Rendered as `null`
+when status is idle, so the bottom inset is freed.
+
+### Timers screen — three modes, one route
+
+`/timers`. Tab strip: Stopwatch / Countdown / Interval. Default
+landing tab is Interval (most useful — that's the EMOM/Tabata case).
+Three preset chips (EMOM 60×0×10, Tabata 20×10×8, 40/20×8) flip the
+config in one tap. A configured "Total" readout sums to the right of
+the rounds stepper so the user can ballpark before starting.
+
+While running, the configuration UI is replaced with a 200px
+circular progress ring + Round X/Y indicator. Phase transitions
+(work → rest, round → round) play a tick cue; final round ends with
+the longer interval-end cue.
+
+Standalone timers all use `useWakeLock` while running. A separate
+hook means none of them step on the rest-timer wake lock.
+
+### Things deferred
+
+- **Settings toggles** for audio + vibration — milestone 12.
+- **Per-profile global rest default** — milestone 12 alongside the
+  Settings page, hardcoded to 90s today.
+- **Lap times** in stopwatch — out of scope.
+- **Lead-in / 3-2-1 countdown** before interval start — out of scope;
+  user can pick a preset and tap Start.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

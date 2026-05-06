@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { logSet, deleteSet, updateSetType } from '../db/setLogs';
+import { useRestTimer } from '../state/restTimer';
+import { primeAudio } from '../lib/cue';
 import { NumberStepper } from './NumberStepper';
 import { SetTypeChip } from './SetTypeChip';
 import type { Exercise, PlannedExercise, SetLog, SetType } from '../types';
@@ -20,6 +22,20 @@ interface Props {
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
 const REPS_STEP = 1;
 const TIME_STEP = 5;
+// Fallback rest when neither the planned slot nor the exercise carries
+// a default. Settings UI (milestone 12) will let the user override.
+const GLOBAL_DEFAULT_REST_S = 90;
+
+function resolveRestSeconds(
+  planned: PlannedExercise,
+  exercise: Exercise,
+): number {
+  return (
+    planned.restSeconds ??
+    exercise.defaultRestSeconds ??
+    GLOBAL_DEFAULT_REST_S
+  );
+}
 
 export function SetRow({
   sessionId,
@@ -65,10 +81,14 @@ export function SetRow({
 
   const completed = !!existingLog;
 
+  const startRest = useRestTimer((s) => s.start);
+
   const tick = async () => {
     if (busy || blockSkipped) return;
     setBusy(true);
     try {
+      // Tap → user gesture → safe to prime / play audio later.
+      primeAudio();
       await logSet({
         sessionId,
         exerciseId: exercise.id,
@@ -80,6 +100,14 @@ export function SetRow({
           ? { durationSeconds: duration }
           : { reps, ...(isBodyweight ? {} : { weight }) }),
       });
+      // Auto-start the rest timer for working / drop / failure / amrap
+      // sets — warm-ups don't need a rest cue.
+      if (setType !== 'warmup') {
+        startRest(
+          resolveRestSeconds(planned, exercise),
+          `After ${exercise.name} · Set ${setNumber}`,
+        );
+      }
     } finally {
       setBusy(false);
     }

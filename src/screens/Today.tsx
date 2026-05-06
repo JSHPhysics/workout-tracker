@@ -128,6 +128,23 @@ export function Today() {
             →
           </span>
         </button>
+        <Link
+          to="/timers"
+          className="group flex items-center justify-between rounded-xl border border-line bg-surface-soft/40 px-4 py-3 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-soft"
+        >
+          <span className="flex flex-col">
+            <span className="font-medium text-fg">Timers</span>
+            <span className="text-xs text-fg-muted">
+              Stopwatch · countdown · EMOM / Tabata.
+            </span>
+          </span>
+          <span
+            aria-hidden
+            className="text-fg-faint transition group-hover:translate-x-0.5 group-hover:text-accent"
+          >
+            →
+          </span>
+        </Link>
       </div>
     </section>
   );
