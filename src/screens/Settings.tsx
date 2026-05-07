@@ -27,6 +27,7 @@ import {
   staleness,
 } from '../components/BackupSection';
 import { BackupPromptModal } from '../components/BackupPromptModal';
+import { useInstallPrompt } from '../lib/installPrompt';
 import { NumberStepper } from '../components/NumberStepper';
 import { PlateViz } from '../components/PlateViz';
 import type { Barbell, PlateInventoryEntry, Profile } from '../types';
@@ -109,6 +110,7 @@ function Preferences() {
           Preferences
         </h2>
       </header>
+      <InstallCard />
       <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
         <label className="flex items-start justify-between gap-4">
           <span className="flex flex-col gap-0.5">
@@ -150,6 +152,92 @@ function Preferences() {
       </article>
       <EquipmentPicker profile={profile} />
     </section>
+  );
+}
+
+/** Settings card that surfaces the PWA install affordance. Renders
+ * nothing when:
+ *   • the app is already installed (display-mode: standalone)
+ *   • neither path is available (e.g. desktop browser without
+ *     install eligibility, or Firefox / Chrome iOS where there's
+ *     no programmatic install AND no Safari share sheet)
+ *
+ * On Android Chromium it shows an in-app **Install** button that
+ * fires the native prompt. On iOS Safari it shows the share-sheet
+ * instructions instead — there's no programmatic equivalent. */
+function InstallCard() {
+  const { canInstall, installed, iosInstallable, install } =
+    useInstallPrompt();
+  const [outcome, setOutcome] = useState<
+    'idle' | 'accepted' | 'dismissed' | 'error'
+  >('idle');
+  if (installed) return null;
+  if (!canInstall && !iosInstallable) return null;
+
+  const onClick = async () => {
+    try {
+      const result = await install();
+      setOutcome(result === 'accepted' ? 'accepted' : 'dismissed');
+    } catch {
+      setOutcome('error');
+    }
+  };
+
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <span className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-accent">
+          Install
+        </span>
+        <h3 className="font-display text-base font-medium">
+          Add to your home screen
+        </h3>
+        <p className="text-xs text-fg-muted">
+          Launches full-screen, works offline, no browser chrome. Your
+          data stays on this device — installing just gives the app its
+          own icon.
+        </p>
+      </header>
+      {canInstall && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClick}
+            className="rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg shadow-soft transition hover:opacity-90"
+          >
+            Install on home screen
+          </button>
+          {outcome === 'dismissed' && (
+            <span className="text-[0.65rem] text-fg-muted">
+              Cancelled — you can try again any time.
+            </span>
+          )}
+          {outcome === 'error' && (
+            <span className="text-[0.65rem] text-fg-muted">
+              Something went wrong. Use the browser menu's "Install
+              app" option as a fallback.
+            </span>
+          )}
+        </div>
+      )}
+      {iosInstallable && (
+        <ol className="flex flex-col gap-1 text-xs text-fg-muted">
+          <li>
+            <span className="font-medium text-fg">1.</span> Tap the{' '}
+            <span className="font-medium text-fg">Share</span> icon in
+            Safari's toolbar.
+          </li>
+          <li>
+            <span className="font-medium text-fg">2.</span> Choose{' '}
+            <span className="font-medium text-fg">Add to Home Screen</span>.
+          </li>
+          <li>
+            <span className="font-medium text-fg">3.</span> Confirm —
+            the app appears alongside your other apps.
+          </li>
+        </ol>
+      )}
+    </article>
   );
 }
 

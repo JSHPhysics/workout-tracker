@@ -24,6 +24,16 @@ export default defineConfig({
         name: 'Workout Tracker',
         short_name: 'Workouts',
         description: 'Personal two-profile workout tracker',
+        // `id` pins the app's identity for browsers (notably Chrome on
+        // Android) so future tweaks to start_url don't show as a new
+        // app to the user — see https://web.dev/articles/manifest-id.
+        id: base,
+        lang: 'en',
+        dir: 'ltr',
+        categories: ['fitness', 'health', 'lifestyle'],
+        // We're a standalone PWA; never suggest a Play Store app.
+        prefer_related_applications: false,
+        related_applications: [],
         theme_color: '#0c0a08',
         background_color: '#0c0a08',
         display: 'standalone',
