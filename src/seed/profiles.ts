@@ -17,6 +17,7 @@ export const SEED_PROFILES: readonly Profile[] = [
     accent: 'profile-josh',
     unitSystem: 'kg',
     useBodyweightForVolume: false,
+    periodTrackingEnabled: false,
     equipment: [
       'bodyweight',
       'barbell',
@@ -36,6 +37,7 @@ export const SEED_PROFILES: readonly Profile[] = [
     accent: 'profile-hayley',
     unitSystem: 'kg',
     useBodyweightForVolume: false,
+    periodTrackingEnabled: false,
     equipment: [
       'bodyweight',
       'barbell',

@@ -4,6 +4,7 @@ import type {
   BodyweightLog,
   Exercise,
   PRRecord,
+  PeriodLog,
   PlateInventory,
   Profile,
   RoutineTemplate,
@@ -21,8 +22,9 @@ type V2Profile = Omit<Profile, 'useBodyweightForVolume' | 'equipment'> & {
 };
 // Pre-v4 profiles lack the equipment list. Pre-v4 exercises lack the
 // requiredEquipment / instructions / diagram trio.
-type V3Profile = Omit<Profile, 'equipment'> & {
+type V3Profile = Omit<Profile, 'equipment' | 'periodTrackingEnabled'> & {
   equipment?: Profile['equipment'];
+  periodTrackingEnabled?: Profile['periodTrackingEnabled'];
 };
 type V3Exercise = Omit<
   Exercise,
@@ -31,6 +33,10 @@ type V3Exercise = Omit<
   requiredEquipment?: Exercise['requiredEquipment'];
   instructions?: Exercise['instructions'];
   diagram?: Exercise['diagram'];
+};
+// Pre-v6 profiles lack the period-tracking toggle.
+type V5Profile = Omit<Profile, 'periodTrackingEnabled'> & {
+  periodTrackingEnabled?: Profile['periodTrackingEnabled'];
 };
 
 // Single Dexie instance for the app. Each Dexie table is typed via
@@ -51,6 +57,7 @@ export type WorkoutDB = Dexie & {
   plateInventory: EntityTable<PlateInventory, 'id'>;
   bodyweightLogs: EntityTable<BodyweightLog, 'id'>;
   prRecords: EntityTable<PRRecord, 'id'>;
+  periodLogs: EntityTable<PeriodLog, 'id'>;
 };
 
 // Names index entries:
@@ -218,3 +225,33 @@ db.version(5).stores({
   prRecords:
     '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
 });
+
+// v6 — Period/cycle tracking added (opt-in per profile). New
+// `periodLogs` table indexed by [profileId+startDate] for the
+// chronologically-ordered queries the cycle calculator needs. The
+// upgrader backfills `periodTrackingEnabled: false` on every existing
+// profile so the new UI surfaces stay invisible until the user opts
+// in via Settings.
+db.version(6)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+    periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V5Profile[];
+    for (const p of profiles) {
+      if (typeof p.periodTrackingEnabled === 'boolean') continue;
+      await profilesTable.update(p.id, { periodTrackingEnabled: false });
+    }
+  });

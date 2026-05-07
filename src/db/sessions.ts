@@ -96,12 +96,21 @@ export async function finishSession(id: string): Promise<PRAward[]> {
 
       // Pull prior baselines per exercise referenced this session.
       // History is "everything for this profile that isn't this session".
+      // We scope to this profile via a session-id allowlist — without
+      // it the cross-exercise lookup would include other profiles'
+      // setLogs and silently swallow legitimate first-session PRs
+      // for any user who shares the device.
+      const profileSessionIds = new Set(
+        (await db.sessions.where({ profileId: session.profileId }).toArray())
+          .map((s) => s.id)
+          .filter((sid) => sid !== id),
+      );
       const exerciseIds = Array.from(new Set(setLogs.map((s) => s.exerciseId)));
       const priorByExercise = new Map<string, PriorBaselines>();
       for (const exerciseId of exerciseIds) {
         const allHistory = await db.setLogs
           .where({ exerciseId })
-          .filter((s) => s.sessionId !== id)
+          .filter((s) => s.sessionId !== id && profileSessionIds.has(s.sessionId))
           .toArray();
         const sessionVolumes = computeSessionVolumes(
           allHistory,

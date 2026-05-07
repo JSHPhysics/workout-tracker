@@ -11,6 +11,7 @@ import {
   usePlateInventory,
 } from '../db/equipment';
 import {
+  setPeriodTrackingEnabled,
   setProfileEquipment,
   setUseBodyweightForVolume,
   useProfile,
@@ -123,6 +124,27 @@ function Preferences() {
             checked={enabled}
             onChange={(next) => void setUseBodyweightForVolume(profileId, next)}
             ariaLabel="Count bodyweight in volume aggregates"
+          />
+        </label>
+      </article>
+      <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <label className="flex items-start justify-between gap-4">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-fg">
+              Period & cycle tracking
+            </span>
+            <span className="text-xs text-fg-muted">
+              Log period start dates; see your cycle phase on Today and
+              as context on the Mood & Energy chart and PR timeline. All
+              data stays on this device.
+            </span>
+          </span>
+          <Toggle
+            checked={profile.periodTrackingEnabled}
+            onChange={(next) =>
+              void setPeriodTrackingEnabled(profileId, next)
+            }
+            ariaLabel="Enable period and cycle tracking"
           />
         </label>
       </article>

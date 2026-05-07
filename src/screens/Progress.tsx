@@ -8,6 +8,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,6 +17,16 @@ import {
 import { useActiveProfile } from '../state/activeProfile';
 import { useExerciseMap } from '../db/exercises';
 import { useBodyweightLogs } from '../db/bodyweight';
+import { usePeriodLogs } from '../db/period';
+import { useProfile } from '../db/profiles';
+import { CycleChip } from '../components/CycleChip';
+import { cyclePhaseAt } from '../domain/cycle';
+import {
+  CYCLE_PHASE_COLORS,
+  CYCLE_PHASE_LABELS,
+  type CyclePhase,
+  type PeriodLog,
+} from '../types';
 import {
   useExerciseHistory,
   useProfilePRRecords,
@@ -136,9 +147,14 @@ export function Progress() {
             summaries={summaries}
             exerciseMap={exerciseMap}
             range={range}
+            profileId={profileId}
           />
 
-          <MoodEnergyChart summaries={summaries} range={range} />
+          <MoodEnergyChart
+            summaries={summaries}
+            range={range}
+            profileId={profileId}
+          />
 
           <ExerciseDrillDown
             profileId={profileId}
@@ -364,12 +380,19 @@ function PRTimeline({
   summaries,
   exerciseMap,
   range,
+  profileId,
 }: {
   records: PRRecord[] | undefined;
   summaries: SessionSummary[] | undefined;
   exerciseMap: Map<string, Exercise> | undefined;
   range: Range;
+  profileId: string | null;
 }) {
+  const profile = useProfile(profileId);
+  const periodLogs = usePeriodLogs(profileId);
+  const periodTrackingOn = profile?.periodTrackingEnabled ?? false;
+  const showPhase = periodTrackingOn && (periodLogs?.length ?? 0) > 0;
+
   const filtered = useMemo(() => {
     if (!records) return null;
     const now = new Date();
@@ -395,6 +418,10 @@ function PRTimeline({
         <ul className="flex flex-col divide-y divide-line/60">
           {filtered.slice(0, 12).map((r) => {
             const ex = exerciseMap.get(r.exerciseId);
+            const phaseSnap =
+              showPhase && periodLogs
+                ? cyclePhaseAt(r.achievedAt.slice(0, 10), periodLogs)
+                : null;
             return (
               <li key={r.id}>
                 <Link
@@ -405,8 +432,11 @@ function PRTimeline({
                     <span className="text-sm font-medium">
                       {ex?.name ?? 'Exercise'}
                     </span>
-                    <span className="text-[0.65rem] uppercase tracking-[0.16em] text-fg-faint">
-                      {DATE_LABEL.format(new Date(r.achievedAt))}
+                    <span className="flex items-center gap-1.5 text-[0.65rem] uppercase tracking-[0.16em] text-fg-faint">
+                      <span>{DATE_LABEL.format(new Date(r.achievedAt))}</span>
+                      {phaseSnap && (
+                        <CycleChip phase={phaseSnap.phase} />
+                      )}
                     </span>
                   </div>
                   <div className="flex items-baseline gap-2">
@@ -442,13 +472,59 @@ interface WellbeingPoint {
   energyAfter: number | null;
 }
 
+interface PhaseBand {
+  phase: CyclePhase;
+  /** Both refer to dataKey values on the X axis (session dates). */
+  x1: string;
+  x2: string;
+}
+
+/** Compute consecutive-same-phase runs across the chart's data
+ * points. Each run becomes a ReferenceArea band. Sparse session
+ * dates mean bands span session-to-session, not literal calendar
+ * days — close enough for visual phase context. */
+function computePhaseBands(
+  points: readonly WellbeingPoint[],
+  logs: readonly PeriodLog[],
+): PhaseBand[] {
+  if (logs.length === 0 || points.length === 0) return [];
+  const out: PhaseBand[] = [];
+  let currentPhase: CyclePhase | null = null;
+  let runStart: string | null = null;
+  let runEnd: string | null = null;
+  for (const p of points) {
+    const snap = cyclePhaseAt(p.date, logs);
+    const phase = snap?.phase ?? null;
+    if (phase !== currentPhase) {
+      if (currentPhase !== null && runStart !== null && runEnd !== null) {
+        out.push({ phase: currentPhase, x1: runStart, x2: runEnd });
+      }
+      currentPhase = phase;
+      runStart = phase ? p.date : null;
+      runEnd = phase ? p.date : null;
+    } else if (phase) {
+      runEnd = p.date;
+    }
+  }
+  if (currentPhase !== null && runStart !== null && runEnd !== null) {
+    out.push({ phase: currentPhase, x1: runStart, x2: runEnd });
+  }
+  return out;
+}
+
 function MoodEnergyChart({
   summaries,
   range,
+  profileId,
 }: {
   summaries: SessionSummary[] | undefined;
   range: Range;
+  profileId: string | null;
 }) {
+  const profile = useProfile(profileId);
+  const periodLogs = usePeriodLogs(profileId);
+  const periodTrackingOn = profile?.periodTrackingEnabled ?? false;
+
   const { points, snapshots } = useMemo(() => {
     if (!summaries) return { points: null, snapshots: null };
     const now = new Date();
@@ -475,6 +551,11 @@ function MoodEnergyChart({
     );
     return { points: ps, snapshots: snaps };
   }, [summaries, range]);
+
+  const phaseBands = useMemo(() => {
+    if (!periodTrackingOn || !periodLogs || !points) return [];
+    return computePhaseBands(points, periodLogs);
+  }, [periodTrackingOn, periodLogs, points]);
 
   const moodLift = snapshots ? averageMoodLift(snapshots) : null;
   const energyLift = snapshots ? averageEnergyLift(snapshots) : null;
@@ -563,6 +644,19 @@ function MoodEnergyChart({
                   ]}
                 />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
+                {phaseBands.map((b, i) => (
+                  <ReferenceArea
+                    key={`phase-${i}`}
+                    x1={b.x1}
+                    x2={b.x2}
+                    y1={1}
+                    y2={5}
+                    fill={CYCLE_PHASE_COLORS[b.phase]}
+                    fillOpacity={0.1}
+                    stroke="none"
+                    ifOverflow="visible"
+                  />
+                ))}
                 <Line
                   type="monotone"
                   name="Mood after"
@@ -608,9 +702,28 @@ function MoodEnergyChart({
               </LineChart>
             </ResponsiveContainer>
           </div>
+          {phaseBands.length > 0 && <PhaseLegend />}
         </>
       )}
     </article>
+  );
+}
+
+function PhaseLegend() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.6rem] uppercase tracking-[0.14em] text-fg-faint">
+      <span>Cycle:</span>
+      {(Object.keys(CYCLE_PHASE_LABELS) as CyclePhase[]).map((p) => (
+        <span key={p} className="inline-flex items-center gap-1">
+          <span
+            aria-hidden
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ background: CYCLE_PHASE_COLORS[p] }}
+          />
+          {CYCLE_PHASE_LABELS[p]}
+        </span>
+      ))}
+    </div>
   );
 }
 

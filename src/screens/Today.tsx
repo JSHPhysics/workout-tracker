@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useActiveSession, createSession } from '../db/sessions';
 import { useRoutines } from '../db/routines';
+import { useProfile } from '../db/profiles';
+import { useCyclePhaseToday } from '../db/period';
+import { CycleChip } from '../components/CycleChip';
 import { ElapsedTime } from '../components/ElapsedTime';
+import { PeriodLogModal } from '../components/PeriodLogModal';
 
 const FREE_SESSION_LABEL = (() => {
   const fmt = new Intl.DateTimeFormat(undefined, {
@@ -18,8 +22,12 @@ export function Today() {
   const profileId = useActiveProfile((s) => s.activeProfileId);
   const activeSession = useActiveSession(profileId);
   const routines = useRoutines();
+  const profile = useProfile(profileId);
+  const cycleToday = useCyclePhaseToday(profileId);
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  const periodTrackingOn = profile?.periodTrackingEnabled ?? false;
 
   const startFree = async () => {
     if (!profileId || starting) return;
@@ -48,6 +56,27 @@ export function Today() {
         <p className="text-sm text-fg-muted">
           Pick up an open session, or start a fresh workout from a routine.
         </p>
+        {periodTrackingOn && (
+          <div className="-mt-0.5 flex flex-wrap gap-2">
+            {cycleToday ? (
+              <CycleChip
+                phase={cycleToday.phase}
+                dayOfCycle={cycleToday.dayOfCycle}
+                {...(cycleToday.overdue ? { overdue: true } : {})}
+                asButton
+                onClick={() => setPeriodModalOpen(true)}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPeriodModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-line-strong px-3 py-1 text-[0.65rem] uppercase tracking-[0.14em] text-fg-muted transition hover:border-accent hover:text-accent"
+              >
+                + Log period
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {activeSession && (
@@ -146,6 +175,13 @@ export function Today() {
           </span>
         </Link>
       </div>
+
+      {periodModalOpen && profileId && (
+        <PeriodLogModal
+          profileId={profileId}
+          onClose={() => setPeriodModalOpen(false)}
+        />
+      )}
     </section>
   );
 }

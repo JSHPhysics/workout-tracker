@@ -3,6 +3,7 @@ export type {
   Block,
   BlockType,
   BodyweightLog,
+  CyclePhase,
   DayKind,
   DayTemplate,
   DurationRange,
@@ -13,6 +14,7 @@ export type {
   MuscleGroup,
   PRRecord,
   PRType,
+  PeriodLog,
   PlannedExercise,
   PlateInventory,
   PlateInventoryEntry,
@@ -27,6 +29,9 @@ export type {
   WeekTemplate,
 } from './domain';
 export {
+  CYCLE_PHASES,
+  CYCLE_PHASE_COLORS,
+  CYCLE_PHASE_LABELS,
   EQUIPMENT_LABELS,
   EQUIPMENT_TAGS,
   EXERCISE_CATEGORIES,

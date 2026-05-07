@@ -109,6 +109,10 @@ export interface Profile {
    * BodyweightLog entry as their per-rep load (so push-ups & co
    * actually count toward volume aggregates). */
   useBodyweightForVolume: boolean;
+  /** When true, the period/cycle tracking surfaces are visible: the
+   * Today-screen day/phase chip, the Mood & Energy chart phase bands,
+   * and per-PR-row phase chips. Per-profile and opt-in by default. */
+  periodTrackingEnabled: boolean;
   /** What's in the user's gym. Drives the exercise picker filter:
    * exercises whose `requiredEquipment` aren't fully covered by
    * this list are hidden by default. Empty list = "I have nothing,
@@ -316,6 +320,44 @@ export interface BodyweightLog {
   date: string;
   notes?: string;
 }
+
+// --- Period log -------------------------------------------------------------
+
+export interface PeriodLog {
+  id: string;
+  profileId: string;
+  /** YYYY-MM-DD in user's local date — first day of the period. */
+  startDate: string;
+  /** YYYY-MM-DD — last day of the period. Optional; when set, the
+   * cycle phase calculator uses this as the menstrual-phase end. */
+  endDate?: string;
+  notes?: string;
+}
+
+export const CYCLE_PHASES = [
+  'menstrual',
+  'follicular',
+  'ovulation',
+  'luteal',
+] as const;
+export type CyclePhase = (typeof CYCLE_PHASES)[number];
+
+export const CYCLE_PHASE_LABELS: Record<CyclePhase, string> = {
+  menstrual: 'Menstrual',
+  follicular: 'Follicular',
+  ovulation: 'Ovulation',
+  luteal: 'Luteal',
+};
+
+/** Subtle palette tuned to read on both light and dark surfaces and
+ * across both profile accents. Used for the Mood & Energy chart
+ * phase bands and the per-PR-row chips. */
+export const CYCLE_PHASE_COLORS: Record<CyclePhase, string> = {
+  menstrual: '#fb7185',
+  follicular: '#10b981',
+  ovulation: '#f59e0b',
+  luteal: '#8b5cf6',
+};
 
 // --- Helpers ----------------------------------------------------------------
 

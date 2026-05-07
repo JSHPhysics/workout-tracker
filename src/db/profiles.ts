@@ -36,3 +36,13 @@ export async function setProfileEquipment(
 ): Promise<void> {
   await db.profiles.update(profileId, { equipment });
 }
+
+/** Per-profile opt-in for the period/cycle tracking surfaces. When
+ * `false`, the Today chip / chart bands / PR Timeline phase chips
+ * are hidden. Existing logs are preserved across toggles. */
+export async function setPeriodTrackingEnabled(
+  profileId: string,
+  enabled: boolean,
+): Promise<void> {
+  await db.profiles.update(profileId, { periodTrackingEnabled: enabled });
+}

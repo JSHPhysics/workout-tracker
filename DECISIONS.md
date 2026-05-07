@@ -1526,6 +1526,139 @@ hand-logging 30+ workouts.
 
 ---
 
+## 2026-05-07 — Period & cycle tracking (per-profile, opt-in)
+
+**Context.** Hayley wants to see where she is in her cycle when she's
+working out and whether phase correlates with mood/energy/PRs. Most
+existing period apps don't tie into strength data; her workout app
+already captures the workout side, so the integration point is here,
+not in a separate app.
+
+User-confirmed scope:
+- Just period start/end dates (lean — no flow / symptoms in v1)
+- Surfaces: Today day/phase chip + Mood & Energy chart phase bands +
+  per-PR-row phase chip
+- Per-profile toggleable in Settings → Preferences (off by default)
+
+### Privacy first
+
+Period entries live in the same local Dexie store as everything else
+— no transmission, no cloud, no analytics. They're included in JSON
+backups (per the milestone-10 "user owns their data" stance) but
+never leave the device automatically. The Settings toggle is
+per-profile so Joshua's profile shows none of this even if Hayley's
+has it enabled.
+
+### Schema (Dexie v6)
+
+- `Profile.periodTrackingEnabled: boolean` (additive; v6 upgrader
+  backfills `false` on every existing profile so the new UI surfaces
+  stay invisible until opt-in).
+- `PeriodLog { id, profileId, startDate, endDate?, notes? }` — new
+  table indexed `[profileId+startDate]` for the chronologically-
+  ordered queries the cycle calculator needs.
+
+### Phase model
+
+Standard 4-phase clinical model (`menstrual / follicular /
+ovulation / luteal`) anchored to ovulation ~14 days *before* the
+next predicted period — the luteal phase is the more stable end of
+the cycle, so anchoring there generalises to non-28-day cycles. Day
+boundaries:
+
+- **Menstrual**: day 1 → logged `endDate` (or day 5 by convention).
+- **Ovulation**: ±1 day around `cycleLength − 14`.
+- **Follicular**: from menstrual end to ovulation start.
+- **Luteal**: from ovulation end to the cycle's end.
+
+Cycle length is the rolling average of the most recent 4 gaps
+between logged starts; falls back to 28 with fewer than 2 logs. 17
+unit tests in [src/domain/cycle.test.ts](src/domain/cycle.test.ts)
+covering textbook cycles, irregular gaps, ovulation shift for
+shorter/longer cycles, edge cases (overdue, predates first log,
+single-log fallback).
+
+### Reusable `<CycleChip>`
+
+One pill component used twice:
+- **Today**: large form with day-of-cycle prefix (`Day 26 · Luteal`).
+  Tappable, opens the period log modal.
+- **PR Timeline rows**: compact form (just the phase label) — answers
+  "what phase was I in when I hit this?" at a glance.
+
+The chip uses inline phase-tinted background (`color14` opacity) +
+border (`color55`) computed from the per-phase palette in
+[domain.ts](src/types/domain.ts). The colours read against both the
+warm-cream Joshua theme and the pale-pink Hayley theme; tested
+visually on both.
+
+### `PeriodLogModal`
+
+Standard bottom-sheet pattern. Shows:
+- Today's status pill (when computable) with avg-cycle + next-
+  predicted-start.
+- Quick-log buttons: **Started today** / **Yesterday** as one-tap
+  affordances; collapsible details for custom date or end-date.
+- Recent log list with edit / delete per row.
+
+Copy leans neutral and informational ("Stays on this device. Used
+only to compute cycle phase context elsewhere in the app.") — the
+goal is a tool that gets out of the way.
+
+### Mood & Energy chart phase bands
+
+Recharts `<ReferenceArea>` bands behind the line chart, one per
+consecutive-same-phase run of session dates. With session-sparse data
+(e.g. M/W/F training), bands span session-to-session so the
+background reads as continuous phase context even though there are
+gaps between data points.
+
+Bands render at `fillOpacity={0.1}` so the lines stay primary. A
+small inline legend (Cycle: Menstrual · Follicular · Ovulation ·
+Luteal) anchors the colour mapping below the chart, only shown when
+bands are present (i.e. period tracking is enabled and at least one
+log exists).
+
+### Today-screen integration
+
+When the toggle is on:
+- If logs exist → render `<CycleChip>` with day + phase, tappable to
+  open the modal.
+- If no logs yet → render a dashed "+ Log period" button.
+
+When the toggle is off, neither surfaces. Consistent with how
+`useBodyweightForVolume` gates its UI.
+
+### Side effect: cross-profile PR-detection bug fix
+
+While verifying with Hayley, discovered that
+[`finishSession`](src/db/sessions.ts) had been computing PR baselines
+using `db.setLogs.where({ exerciseId })` — which crosses profiles
+since setLogs aren't profile-scoped. So Hayley's first synthetic
+session saw Joshua's existing 100kg+ baseline and registered zero
+PRs even on a brand-new exercise.
+
+Fixed in the same transaction: pull the profile's session-id allow-
+list from `db.sessions.where({ profileId })` and filter the prior
+history to those sessions only. Net effect: 0 → 181 PRs on Hayley's
+12-week synthetic seed.
+
+### Things deferred
+
+- **Symptom logging (cramps, flow, etc.)** — explicitly skipped by
+  user in scope question. Trivially additive later.
+- **Cycle insights / correlations** — "PRs per phase" or "energy
+  delta per phase" — the data is now plumbed through the chart
+  overlay, which gives the visual correlation cheaply. Numeric
+  insights wait until there's enough data + clear demand.
+- **Cycle prediction notification** — the modal shows the predicted
+  next start, but no push notification or banner. Notifications
+  remain SCOPE §11 deferred.
+- **Symptoms-as-tags retroactively on the wellbeing prompts** —
+  could merge once both features are in heavier daily use.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in
