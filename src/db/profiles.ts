@@ -46,3 +46,14 @@ export async function setPeriodTrackingEnabled(
 ): Promise<void> {
   await db.profiles.update(profileId, { periodTrackingEnabled: enabled });
 }
+
+/** Replace the warm-up generator percentages for the profile. The
+ * generator pre-logs one warm-up set per entry, in the given order, at
+ * `target * pct / 100` (snapped to 2.5 kg). We store the raw integer
+ * percentages — the snap and the unit conversion happen at use-time. */
+export async function setWarmupPercentages(
+  profileId: string,
+  percentages: number[],
+): Promise<void> {
+  await db.profiles.update(profileId, { warmupPercentages: percentages });
+}

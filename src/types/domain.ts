@@ -119,6 +119,12 @@ export interface Profile {
    * show me bodyweight only". `bodyweight` is implicit but we still
    * persist it so the picker filter reads cleanly. */
   equipment: EquipmentTag[];
+  /** Percentages used by the warm-up generator on the session screen.
+   * Each entry is a percent of the user-supplied target working weight;
+   * order is the order the warm-up sets are pre-logged in. Default
+   * `[30, 45, 60]` (3 sets at 30 / 45 / 60 % of target). Editable in
+   * Settings → Preferences; weights snap to 2.5 kg. */
+  warmupPercentages: number[];
   createdAt: string;
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
+  addWarmupSets,
   appendBlock,
   changeSetCount,
   discardSession,
@@ -24,6 +25,7 @@ import { BackupPromptModal } from '../components/BackupPromptModal';
 import { staleness } from '../components/BackupSection';
 import { RestTimerBar } from '../components/RestTimerBar';
 import { SetRow } from '../components/SetRow';
+import { WarmupGeneratorModal } from '../components/WarmupGeneratorModal';
 import { WellbeingPromptModal } from '../components/WellbeingPromptModal';
 import {
   RATING_EMOJI,
@@ -329,6 +331,9 @@ export function Session() {
                     useBodyweightForVolume={
                       profile?.useBodyweightForVolume ?? false
                     }
+                    warmupPercentages={
+                      profile?.warmupPercentages ?? [30, 45, 60]
+                    }
                     onSwap={(exerciseOrder) =>
                       setPickerTarget({
                         kind: 'swap',
@@ -480,6 +485,7 @@ interface BlockCardProps {
   plateInventory: PlateInventoryEntry[] | null;
   latestBodyweight: number | null;
   useBodyweightForVolume: boolean;
+  warmupPercentages: readonly number[];
   onSwap: (exerciseOrder: number) => void;
 }
 
@@ -496,6 +502,7 @@ function BlockCard({
   plateInventory,
   latestBodyweight,
   useBodyweightForVolume,
+  warmupPercentages,
   onSwap,
 }: BlockCardProps) {
   const skipped = !!block.skipped;
@@ -557,6 +564,7 @@ function BlockCard({
             plateInventory={plateInventory}
             latestBodyweight={latestBodyweight}
             useBodyweightForVolume={useBodyweightForVolume}
+            warmupPercentages={warmupPercentages}
             onSwap={() => onSwap(exIdx)}
           />
         ))}
@@ -580,6 +588,7 @@ interface ExerciseGroupProps {
   plateInventory: PlateInventoryEntry[] | null;
   latestBodyweight: number | null;
   useBodyweightForVolume: boolean;
+  warmupPercentages: readonly number[];
   onSwap: () => void;
 }
 
@@ -598,9 +607,11 @@ function ExerciseGroup({
   plateInventory,
   latestBodyweight,
   useBodyweightForVolume,
+  warmupPercentages,
   onSwap,
 }: ExerciseGroupProps) {
   const [previewing, setPreviewing] = useState(false);
+  const [warmupOpen, setWarmupOpen] = useState(false);
   // Cross-session "what did I lift last time?" lookup. Returns the
   // most recent non-warmup set from any prior session for this
   // profile + exercise. Used as the autofill default for set 1 when
@@ -619,6 +630,19 @@ function ExerciseGroup({
   }
   const target = formatTarget(planned);
   const canRemoveSet = planned.setCount > 1;
+  // The warm-up generator pre-logs setNumbers 1..N and bumps setCount
+  // by N. To avoid renumbering existing rows we only allow generation
+  // before any sets have been logged for this exercise slot. Also
+  // gated on weighted exercises — bodyweight / time / walking lifts
+  // have no working weight to multiply against.
+  const hasAnyLogsForSlot = Array.from(
+    { length: planned.setCount },
+    (_, i) => i + 1,
+  ).some((n) => logsByKey.has(`${blockOrder}-${exerciseOrder}-${n}`));
+  const canGenerateWarmups =
+    exercise.measurementType === 'weight_reps' &&
+    warmupPercentages.length > 0 &&
+    !hasAnyLogsForSlot;
 
   /** Per-set autofill defaults. Walks back through the in-session
    * sets (N-1, N-2, ... 1) for the most recent logged value of each
@@ -639,6 +663,10 @@ function ExerciseGroup({
     for (let n = setNumber - 1; n >= 1; n--) {
       const prior = logsByKey.get(`${blockOrder}-${exerciseOrder}-${n}`);
       if (!prior) continue;
+      // Skip warm-up sets so a 60% pre-logged warm-up doesn't drag the
+      // first working set's default weight down to itself. Working sets
+      // should default to the cross-session prior weight (or 0).
+      if (prior.setType === 'warmup') continue;
       if (weight === undefined && prior.weight !== undefined) {
         weight = prior.weight;
       }
@@ -769,6 +797,15 @@ function ExerciseGroup({
           >
             Swap
           </button>
+          {canGenerateWarmups && (
+            <button
+              type="button"
+              onClick={() => setWarmupOpen(true)}
+              className="text-fg-muted transition hover:text-accent"
+            >
+              + Warm-ups
+            </button>
+          )}
           {canRemoveSet && (
             <button
               type="button"
@@ -790,6 +827,23 @@ function ExerciseGroup({
             + Set
           </button>
         </div>
+      )}
+      {warmupOpen && (
+        <WarmupGeneratorModal
+          exerciseName={exercise.name}
+          initialTarget={priorMetric?.weight ?? 0}
+          percentages={warmupPercentages}
+          onCancel={() => setWarmupOpen(false)}
+          onGenerate={(warmups) => {
+            void addWarmupSets(
+              sessionId,
+              blockOrder,
+              exerciseOrder,
+              warmups,
+            );
+            setWarmupOpen(false);
+          }}
+        />
       )}
       {previewing && (
         <ExerciseDetail

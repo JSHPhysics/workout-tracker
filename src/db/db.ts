@@ -38,6 +38,10 @@ type V3Exercise = Omit<
 type V5Profile = Omit<Profile, 'periodTrackingEnabled'> & {
   periodTrackingEnabled?: Profile['periodTrackingEnabled'];
 };
+// Pre-v7 profiles lack the warm-up generator percentages.
+type V6Profile = Omit<Profile, 'warmupPercentages'> & {
+  warmupPercentages?: Profile['warmupPercentages'];
+};
 
 // Single Dexie instance for the app. Each Dexie table is typed via
 // `EntityTable<T, primaryKey>`; the second generic argument is the name
@@ -253,5 +257,37 @@ db.version(6)
     for (const p of profiles) {
       if (typeof p.periodTrackingEnabled === 'boolean') continue;
       await profilesTable.update(p.id, { periodTrackingEnabled: false });
+    }
+  });
+
+// v7 — Profile.warmupPercentages added (warm-up generator). Plain JSON
+// array column on the profile row — no index changes. The upgrader
+// backfills the standard 30/45/60 % defaults on every existing profile
+// so the Settings card and the in-session generator have a sensible
+// starting point without forcing the user to configure first.
+const WARMUP_PERCENTAGES_DEFAULT: Profile['warmupPercentages'] = [30, 45, 60];
+db.version(7)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+    periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V6Profile[];
+    for (const p of profiles) {
+      if (Array.isArray(p.warmupPercentages)) continue;
+      await profilesTable.update(p.id, {
+        warmupPercentages: [...WARMUP_PERCENTAGES_DEFAULT],
+      });
     }
   });

@@ -1659,6 +1659,83 @@ history to those sessions only. Net effect: 0 → 181 PRs on Hayley's
 
 ---
 
+## 2026-05-07 — Warm-up generator (per-profile percentages, pre-logged sets)
+
+### Context
+
+Logging warm-up sets by hand on every barbell exercise is tedious —
+the user always wants the same 3 progressively-heavier sets at
+30 / 45 / 60 % of the working weight, and entering each one is six
+stepper taps. The right surface for this is a single "+ Warm-ups"
+button in the session screen that asks for the working weight once
+and pre-logs all three.
+
+### Schema
+
+`Profile.warmupPercentages: number[]` — Dexie v7 additive migration,
+plain JSON column (no index changes). Default `[30, 45, 60]`. The
+upgrader backfills the default on existing profile rows.
+
+Three was the right size: enough headroom for a heavy main lift
+without dragging out the warm-up, matches the conventional progression
+in most strength programs.
+
+### UX
+
+- **Settings → Warm-up sets** card: three `NumberStepper`s (5%
+  step, 0–100, persisting on every step). Each row shows a live
+  preview against an example 100 kg target so the percentages aren't
+  abstract.
+- **Session screen → "+ Warm-ups"** button next to "Swap" / "+ Set".
+  Gated on:
+  - `exercise.measurementType === 'weight_reps'` — bodyweight /
+    time / walking lifts have no working weight to multiply.
+  - No set logs exist yet for the slot — pre-logging runs at
+    setNumbers 1..N and would otherwise renumber existing rows.
+- **Modal**: target stepper (pre-filled from the cross-session
+  prior weight via `useMostRecentSetMetric`), reps stepper (default
+  5), live preview row showing each warm-up at `target × pct / 100`
+  snapped to 2.5 kg.
+- **Generate** writes N `SetLog` rows with `setType: 'warmup'`,
+  bumps `setCount` by N in a single Dexie transaction. The planned
+  working sets reflow to positions N+1..M and render as empty
+  placeholders.
+
+### Autofill interaction
+
+The in-session inheritance walk in `ExerciseGroup.computeDefaults`
+previously walked back through every prior setNumber. With warm-ups
+pre-logged at the head, working set N+1 would have defaulted to the
+60% warm-up weight. Fixed by adding `if (prior.setType === 'warmup')
+continue;` to the walk — working sets now default to the cross-
+session prior (`useMostRecentSetMetric`, which already filters
+warmups) or 0. Cross-session walk and in-session walk now both
+behave consistently around warm-up exclusion.
+
+### Snapping
+
+All warm-up weights snap to 2.5 kg via `Math.round(w / 2.5) * 2.5`.
+Same step the existing weight stepper uses, matching the user's
+plate inventory granularity (UK home-gym: smallest plate is
+1.25 kg, smallest practical addition per side is 2.5 kg).
+
+### Things deferred
+
+- **Customising warm-up reps per row in the modal** — single reps
+  stepper applies to all warm-ups; the user can edit per row inline
+  after generation. Makes the modal lighter.
+- **Per-exercise warm-up overrides** — some lifts genuinely want
+  different progressions (e.g. squats benefit from more sets). Not
+  worth the schema cost yet; if the user finds 30/45/60 wrong for a
+  specific lift they can edit the percentages globally or skip
+  generation and log manually.
+- **Auto-trigger on first set entry** — could open the modal
+  automatically when the user types in a working-weight stepper.
+  Decided against: too magical, easy to dismiss accidentally,
+  un-doing the pre-logged sets is annoying. Explicit button wins.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

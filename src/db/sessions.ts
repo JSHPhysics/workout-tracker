@@ -260,6 +260,71 @@ export function changeSetCount(
   );
 }
 
+// --- Warm-up generator -----------------------------------------------------
+
+interface WarmupSpec {
+  /** Snapped weight (kg or lb) for this warm-up set. */
+  weight: number;
+  /** Reps for this warm-up set. */
+  reps: number;
+}
+
+/** Insert N pre-logged warm-up sets at the head of an exercise's set
+ * list and bump its `setCount` so the planned working sets reflow to
+ * positions N+1..M.
+ *
+ * Caller is expected to gate this so it only runs when no set logs
+ * already exist for the exercise — without that guard the renumbering
+ * of pre-existing rows gets gnarly. The session screen enforces this.
+ *
+ * Single Dexie transaction over `sessions` + `setLogs` so a partial
+ * failure can't leave warm-up rows behind without the matching
+ * setCount bump (or vice versa). */
+export async function addWarmupSets(
+  sessionId: string,
+  blockOrder: number,
+  exerciseOrder: number,
+  warmups: WarmupSpec[],
+): Promise<void> {
+  if (warmups.length === 0) return;
+  await db.transaction('rw', [db.sessions, db.setLogs], async () => {
+    const session = await db.sessions.get(sessionId);
+    if (!session) return;
+    const block = session.livePlan[blockOrder];
+    const planned = block?.exercises[exerciseOrder];
+    if (!planned) return;
+
+    // Pre-log each warm-up at setNumbers 1..N. The user adjusts these
+    // inline like any other set; deleting them via row-level UI is
+    // possible but doesn't decrement setCount (parity with the
+    // existing − Set affordance, which is the canonical removal path).
+    const now = new Date().toISOString();
+    const rows: SetLog[] = warmups.map((w, i) => ({
+      id: crypto.randomUUID(),
+      sessionId,
+      exerciseId: planned.exerciseId,
+      blockOrder,
+      exerciseOrder,
+      setNumber: i + 1,
+      setType: 'warmup',
+      weight: w.weight,
+      reps: w.reps,
+      side: null,
+      prTypes: [],
+      // Stagger by ms so the History "in order completed" sort renders
+      // them sequentially when displayed alongside the working sets.
+      completedAt: new Date(Date.parse(now) + i).toISOString(),
+    }));
+    await db.setLogs.bulkAdd(rows);
+
+    // Bump setCount by warmups.length on the planned slot.
+    const nextPlan = structuredClone(session.livePlan);
+    const slot = nextPlan[blockOrder]!.exercises[exerciseOrder]!;
+    slot.setCount = slot.setCount + warmups.length;
+    await db.sessions.update(sessionId, { livePlan: nextPlan });
+  });
+}
+
 // --- Queries ---------------------------------------------------------------
 
 export function useSession(id: string | undefined): Session | null | undefined {

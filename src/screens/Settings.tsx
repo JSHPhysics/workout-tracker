@@ -14,6 +14,7 @@ import {
   setPeriodTrackingEnabled,
   setProfileEquipment,
   setUseBodyweightForVolume,
+  setWarmupPercentages,
   useProfile,
 } from '../db/profiles';
 import {
@@ -150,6 +151,7 @@ function Preferences() {
           />
         </label>
       </article>
+      <WarmupPercentagesCard profile={profile} />
       <EquipmentPicker profile={profile} />
     </section>
   );
@@ -237,6 +239,72 @@ function InstallCard() {
           </li>
         </ol>
       )}
+    </article>
+  );
+}
+
+/** Three-stepper card for the warm-up generator percentages. The
+ * generator on the session screen pre-logs one warm-up set per entry
+ * at `target * pct / 100`, snapped to 2.5 kg. Defaults to 30 / 45 / 60.
+ *
+ * We persist immediately on every step (same pattern as the equipment
+ * toggle) — there's no Save button. The Live preview row at the bottom
+ * gives a sanity check against an example 100 kg working weight so the
+ * user can see what the numbers actually mean. */
+function WarmupPercentagesCard({ profile }: { profile: Profile }) {
+  const pcts = profile.warmupPercentages;
+  // Show three rows. If a profile somehow has fewer entries we pad up
+  // to 3 with the missing-default; if it has more, the extras render.
+  const rows = pcts.length >= 3 ? pcts : [...pcts, ...[30, 45, 60].slice(pcts.length)];
+  const update = (i: number, next: number) => {
+    const updated = [...rows];
+    updated[i] = next;
+    void setWarmupPercentages(profile.id, updated);
+  };
+  // Example weights at the canonical 100 kg target for the preview row.
+  const SAMPLE_TARGET = 100;
+  const snap = (w: number): number => Math.round(w / 2.5) * 2.5;
+
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h3 className="font-display text-base font-medium">Warm-up sets</h3>
+        <p className="text-xs text-fg-muted">
+          Tap{' '}
+          <span className="font-medium text-fg">+ Warm-ups</span> on a
+          weighted exercise during a session and the app pre-logs sets
+          at these percentages of your target working weight (snapped to
+          2.5 kg).
+        </p>
+      </header>
+      <ul className="flex flex-col gap-2">
+        {rows.map((pct, i) => (
+          <li
+            key={i}
+            className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-soft px-3 py-2"
+          >
+            <span className="flex flex-col gap-0.5">
+              <span className="text-xs font-medium text-fg">
+                Warm-up set {i + 1}
+              </span>
+              <span className="text-[0.65rem] text-fg-muted">
+                {pct}% of target = {snap(SAMPLE_TARGET * (pct / 100))} kg
+                @ 100 kg
+              </span>
+            </span>
+            <NumberStepper
+              value={pct}
+              onChange={(next) => update(i, next)}
+              step={5}
+              min={0}
+              max={100}
+              format={(v) => `${v}%`}
+              width={4}
+              ariaLabel={`Warm-up set ${i + 1} percentage`}
+            />
+          </li>
+        ))}
+      </ul>
     </article>
   );
 }

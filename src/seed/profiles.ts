@@ -29,6 +29,7 @@ export const SEED_PROFILES: readonly Profile[] = [
       'foam-roller',
       'box',
     ],
+    warmupPercentages: [30, 45, 60],
     createdAt: SEED_EPOCH,
   },
   {
@@ -49,6 +50,7 @@ export const SEED_PROFILES: readonly Profile[] = [
       'foam-roller',
       'box',
     ],
+    warmupPercentages: [30, 45, 60],
     createdAt: SEED_EPOCH,
   },
 ] as const;
