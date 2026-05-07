@@ -81,3 +81,58 @@ export function useSessionSetLogs(
     return db.setLogs.where({ sessionId }).sortBy('completedAt');
   }, [sessionId]);
 }
+
+/** A subset of SetLog fields used as autofill defaults on the next
+ * set / next session. */
+export interface PriorSetMetric {
+  weight?: number;
+  reps?: number;
+  durationSeconds?: number;
+  steps?: number;
+}
+
+/** Most-recent working/AMRAP/drop/failure set for a profile + exercise,
+ * excluding the current session. Used to autofill the first set of an
+ * exercise in a fresh session ("you did 40 kg last time → start at 40").
+ *
+ * Warmups are intentionally skipped: a 20 kg warmup set you logged
+ * yesterday isn't what you want to start today's working set at.
+ *
+ * Returns:
+ *   • `undefined` while loading
+ *   • `null` when there is no qualifying prior set
+ *   • the metric subset otherwise */
+export function useMostRecentSetMetric(
+  profileId: string | null | undefined,
+  exerciseId: string | null | undefined,
+  excludeSessionId: string,
+): PriorSetMetric | null | undefined {
+  return useLiveQuery(async () => {
+    if (!profileId || !exerciseId) return null;
+    // setLogs aren't profile-scoped directly — the join goes via
+    // `sessions.profileId`. Same shape as `finishSession`'s baseline
+    // lookup (see DECISIONS milestone 7 / period-tracking entry).
+    const profileSessions = await db.sessions
+      .where({ profileId })
+      .toArray();
+    const profileSessionIds = new Set(profileSessions.map((s) => s.id));
+    const candidates = (
+      await db.setLogs.where({ exerciseId }).toArray()
+    ).filter(
+      (l) =>
+        l.sessionId !== excludeSessionId &&
+        profileSessionIds.has(l.sessionId) &&
+        l.setType !== 'warmup',
+    );
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+    const latest = candidates[0]!;
+    const out: PriorSetMetric = {};
+    if (latest.weight !== undefined) out.weight = latest.weight;
+    if (latest.reps !== undefined) out.reps = latest.reps;
+    if (latest.durationSeconds !== undefined)
+      out.durationSeconds = latest.durationSeconds;
+    if (latest.steps !== undefined) out.steps = latest.steps;
+    return out;
+  }, [profileId, exerciseId, excludeSessionId]);
+}

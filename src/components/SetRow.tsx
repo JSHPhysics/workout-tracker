@@ -44,6 +44,18 @@ interface Props {
   /** When true, log bodyweight-only sets with weight = latestBodyweight
    * so they contribute to volume aggregates. */
   useBodyweightForVolume: boolean;
+  /** Autofill defaults computed by the parent ExerciseGroup. The
+   * parent walks back through prior in-session sets for this
+   * exercise, falls back to the most recent prior session's
+   * non-warmup set, and finally to planned-range midpoints / 0.
+   * Used as the initial stepper value when no `existingLog` exists,
+   * and re-synced via useEffect when the parent's computed default
+   * changes — unless the user has touched the row's controls
+   * (the `dirty` flag protects in-flight edits). */
+  defaultWeight: number;
+  defaultReps: number;
+  defaultDuration: number;
+  defaultSteps: number;
 }
 
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
@@ -77,29 +89,26 @@ export function SetRow({
   plateInventory,
   latestBodyweight,
   useBodyweightForVolume,
+  defaultWeight,
+  defaultReps,
+  defaultDuration,
+  defaultSteps,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isWalking = exercise.measurementType === 'walking';
   const isBodyweight =
     exercise.measurementType === 'bodyweight_reps' && !exercise.usesBarbell;
 
-  const defaultReps = planned.reps
-    ? Math.round((planned.reps.min + planned.reps.max) / 2)
-    : 0;
-  const defaultDuration = planned.durationSeconds
-    ? Math.round(
-        (planned.durationSeconds.min + planned.durationSeconds.max) / 2,
-      )
-    : isWalking
-      ? 1800 // 30 min default if no plan
-      : 0;
-
-  const [weight, setWeight] = useState<number>(existingLog?.weight ?? 0);
+  const [weight, setWeight] = useState<number>(
+    existingLog?.weight ?? defaultWeight,
+  );
   const [reps, setReps] = useState<number>(existingLog?.reps ?? defaultReps);
   const [duration, setDuration] = useState<number>(
     existingLog?.durationSeconds ?? defaultDuration,
   );
-  const [steps, setSteps] = useState<number>(existingLog?.steps ?? 0);
+  const [steps, setSteps] = useState<number>(
+    existingLog?.steps ?? defaultSteps,
+  );
   const [setType, setSetType] = useState<SetType>(
     existingLog?.setType ?? 'working',
   );
@@ -107,6 +116,23 @@ export function SetRow({
   const [notes, setNotes] = useState<string>(existingLog?.notes ?? '');
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Tracks whether the user has touched any of the metric steppers
+   * since this row was last in sync with `existingLog` / defaults.
+   * When true, the re-sync useEffect leaves their in-flight values
+   * alone — so a deliberate climb (set 1 → 40 kg, pre-bumped set 2
+   * to 42.5 kg) isn't clobbered when set 1 logs and the parent
+   * recomputes set 2's default to 40 kg. Reset to false whenever the
+   * row syncs from `existingLog` (after Tick or Undo). */
+  const [dirty, setDirty] = useState(false);
+  /** Helper: wrap any setter so calling it also marks the row dirty.
+   * Used on every metric stepper so the re-sync useEffect leaves
+   * in-flight user edits alone. */
+  const withDirty =
+    <T,>(setter: (next: T) => void) =>
+    (next: T) => {
+      setter(next);
+      setDirty(true);
+    };
 
   useEffect(() => {
     if (existingLog) {
@@ -117,8 +143,25 @@ export function SetRow({
       setSetType(existingLog.setType);
       setRpe(existingLog.rpe ?? null);
       setNotes(existingLog.notes ?? '');
+      setDirty(false);
+    } else if (!dirty) {
+      // No log yet AND user hasn't touched the steppers — re-sync to
+      // the latest computed defaults so in-session and cross-session
+      // inheritance flow through as new data lands (e.g. set 1 logs
+      // → set 2's default updates → this row picks it up).
+      setWeight(defaultWeight);
+      setReps(defaultReps);
+      setDuration(defaultDuration);
+      setSteps(defaultSteps);
     }
-  }, [existingLog, defaultReps, defaultDuration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    existingLog,
+    defaultWeight,
+    defaultReps,
+    defaultDuration,
+    defaultSteps,
+  ]);
 
   const completed = !!existingLog;
 
@@ -239,7 +282,7 @@ export function SetRow({
         {!isTimeBased && !isBodyweight && !isWalking && (
           <NumberStepper
             value={weight}
-            onChange={setWeight}
+            onChange={withDirty(setWeight)}
             step={WEIGHT_STEP}
             ariaLabel="Weight in kilograms"
             disabled={completed || blockSkipped}
@@ -250,7 +293,7 @@ export function SetRow({
         {!isTimeBased && !isWalking && (
           <NumberStepper
             value={reps}
-            onChange={setReps}
+            onChange={withDirty(setReps)}
             step={REPS_STEP}
             ariaLabel="Reps"
             disabled={completed || blockSkipped}
@@ -273,7 +316,7 @@ export function SetRow({
           <>
             <NumberStepper
               value={duration}
-              onChange={setDuration}
+              onChange={withDirty(setDuration)}
               step={60}
               min={0}
               max={36000}
@@ -284,7 +327,7 @@ export function SetRow({
             />
             <NumberStepper
               value={steps}
-              onChange={setSteps}
+              onChange={withDirty(setSteps)}
               step={500}
               min={0}
               max={100000}

@@ -11,7 +11,7 @@ import {
   swapExercise,
   useSession,
 } from '../db/sessions';
-import { useSessionSetLogs } from '../db/setLogs';
+import { useMostRecentSetMetric, useSessionSetLogs } from '../db/setLogs';
 import { useExerciseMap } from '../db/exercises';
 import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
 import { useLatestBodyweight } from '../db/bodyweight';
@@ -316,6 +316,7 @@ export function Session() {
                 <li key={blockIdx}>
                   <BlockCard
                     sessionId={sessionId}
+                    profileId={session.profileId}
                     block={block}
                     blockOrder={blockIdx}
                     supersetLetter={letter}
@@ -466,6 +467,9 @@ function EmptyPlan({ onAdd, locked }: EmptyPlanProps) {
 
 interface BlockCardProps {
   sessionId: string;
+  /** The session's owning profile — needed by autofill for the
+   * cross-session "what did I lift last time?" lookup. */
+  profileId: string;
   block: Block;
   blockOrder: number;
   supersetLetter: string | null;
@@ -481,6 +485,7 @@ interface BlockCardProps {
 
 function BlockCard({
   sessionId,
+  profileId,
   block,
   blockOrder,
   supersetLetter,
@@ -537,6 +542,7 @@ function BlockCard({
           <ExerciseGroup
             key={exIdx}
             sessionId={sessionId}
+            profileId={profileId}
             blockOrder={blockOrder}
             exerciseOrder={exIdx}
             planned={ex}
@@ -561,6 +567,7 @@ function BlockCard({
 
 interface ExerciseGroupProps {
   sessionId: string;
+  profileId: string;
   blockOrder: number;
   exerciseOrder: number;
   planned: PlannedExercise;
@@ -578,6 +585,7 @@ interface ExerciseGroupProps {
 
 function ExerciseGroup({
   sessionId,
+  profileId,
   blockOrder,
   exerciseOrder,
   planned,
@@ -593,6 +601,15 @@ function ExerciseGroup({
   onSwap,
 }: ExerciseGroupProps) {
   const [previewing, setPreviewing] = useState(false);
+  // Cross-session "what did I lift last time?" lookup. Returns the
+  // most recent non-warmup set from any prior session for this
+  // profile + exercise. Used as the autofill default for set 1 when
+  // there's no in-session prior set to inherit from.
+  const priorMetric = useMostRecentSetMetric(
+    profileId,
+    exercise?.id,
+    sessionId,
+  );
   if (!exercise) {
     return (
       <div className="text-sm text-fg-muted">
@@ -602,6 +619,87 @@ function ExerciseGroup({
   }
   const target = formatTarget(planned);
   const canRemoveSet = planned.setCount > 1;
+
+  /** Per-set autofill defaults. Walks back through the in-session
+   * sets (N-1, N-2, ... 1) for the most recent logged value of each
+   * metric. Falls back to the cross-session prior. Falls back again
+   * to the planned-range midpoint (for reps / duration) or 0. */
+  const computeDefaults = (
+    setNumber: number,
+  ): {
+    weight: number;
+    reps: number;
+    durationSeconds: number;
+    steps: number;
+  } => {
+    let weight: number | undefined;
+    let reps: number | undefined;
+    let durationSeconds: number | undefined;
+    let steps: number | undefined;
+    for (let n = setNumber - 1; n >= 1; n--) {
+      const prior = logsByKey.get(`${blockOrder}-${exerciseOrder}-${n}`);
+      if (!prior) continue;
+      if (weight === undefined && prior.weight !== undefined) {
+        weight = prior.weight;
+      }
+      if (reps === undefined && prior.reps !== undefined) {
+        reps = prior.reps;
+      }
+      if (
+        durationSeconds === undefined &&
+        prior.durationSeconds !== undefined
+      ) {
+        durationSeconds = prior.durationSeconds;
+      }
+      if (steps === undefined && prior.steps !== undefined) {
+        steps = prior.steps;
+      }
+      if (
+        weight !== undefined &&
+        reps !== undefined &&
+        durationSeconds !== undefined &&
+        steps !== undefined
+      ) {
+        break;
+      }
+    }
+    // Cross-session fallback (only when in-session yielded nothing
+    // for that metric).
+    if (priorMetric) {
+      if (weight === undefined && priorMetric.weight !== undefined) {
+        weight = priorMetric.weight;
+      }
+      if (reps === undefined && priorMetric.reps !== undefined) {
+        reps = priorMetric.reps;
+      }
+      if (
+        durationSeconds === undefined &&
+        priorMetric.durationSeconds !== undefined
+      ) {
+        durationSeconds = priorMetric.durationSeconds;
+      }
+      if (steps === undefined && priorMetric.steps !== undefined) {
+        steps = priorMetric.steps;
+      }
+    }
+    // Planned-range midpoints (last resort for reps + duration).
+    const plannedRepsMidpoint = planned.reps
+      ? Math.round((planned.reps.min + planned.reps.max) / 2)
+      : 0;
+    const plannedDurationMidpoint = planned.durationSeconds
+      ? Math.round(
+          (planned.durationSeconds.min + planned.durationSeconds.max) / 2,
+        )
+      : exercise.measurementType === 'walking'
+        ? 1800
+        : 0;
+    return {
+      weight: weight ?? 0,
+      reps: reps ?? plannedRepsMidpoint,
+      durationSeconds: durationSeconds ?? plannedDurationMidpoint,
+      steps: steps ?? 0,
+    };
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -632,26 +730,33 @@ function ExerciseGroup({
 
       <div className="flex flex-col gap-2">
         {Array.from({ length: planned.setCount }, (_, i) => i + 1).map(
-          (setNumber) => (
-            <SetRow
-              key={setNumber}
-              sessionId={sessionId}
-              blockOrder={blockOrder}
-              exerciseOrder={exerciseOrder}
-              setNumber={setNumber}
-              planned={planned}
-              exercise={exercise}
-              existingLog={
-                logsByKey.get(`${blockOrder}-${exerciseOrder}-${setNumber}`) ??
-                null
-              }
-              blockSkipped={blockSkipped}
-              barWeight={barWeight}
-              plateInventory={plateInventory}
-              latestBodyweight={latestBodyweight}
-              useBodyweightForVolume={useBodyweightForVolume}
-            />
-          ),
+          (setNumber) => {
+            const defaults = computeDefaults(setNumber);
+            return (
+              <SetRow
+                key={setNumber}
+                sessionId={sessionId}
+                blockOrder={blockOrder}
+                exerciseOrder={exerciseOrder}
+                setNumber={setNumber}
+                planned={planned}
+                exercise={exercise}
+                existingLog={
+                  logsByKey.get(`${blockOrder}-${exerciseOrder}-${setNumber}`) ??
+                  null
+                }
+                blockSkipped={blockSkipped}
+                barWeight={barWeight}
+                plateInventory={plateInventory}
+                latestBodyweight={latestBodyweight}
+                useBodyweightForVolume={useBodyweightForVolume}
+                defaultWeight={defaults.weight}
+                defaultReps={defaults.reps}
+                defaultDuration={defaults.durationSeconds}
+                defaultSteps={defaults.steps}
+              />
+            );
+          },
         )}
       </div>
 
