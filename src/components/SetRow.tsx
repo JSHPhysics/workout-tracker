@@ -267,7 +267,7 @@ export function SetRow({
       ].join(' ')}
     >
     <div className="flex items-center gap-3">
-      <div className="flex w-12 shrink-0 flex-col items-start gap-1">
+      <div className="flex w-16 shrink-0 flex-col items-start gap-1">
         <span className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-fg-muted">
           Set {setNumber}
         </span>
