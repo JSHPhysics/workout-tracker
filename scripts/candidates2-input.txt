@@ -1,0 +1,28 @@
+pull-up	Pull-Up	wide-grip-pull-up|wide-pull-up|assisted-pull-up|kipping-pull-up|negative-pull-up|pullup
+chin-up	Chin-Up	pullup|chinup|inverted-row|negative-chin-up|wide-grip-chin-up
+barbell-overhead-press	Barbell Overhead Press	overhead-shoulder-press|standing-shoulder-press|push-press|behind-the-neck-press|shoulder-press
+barbell-front-squat	Barbell Front Squat	front-squat|goblet-squat|kettlebell-front-squat|squat
+barbell-power-clean	Power Clean	clean-and-press|hang-clean|squat-clean|kettlebell-clean
+goblet-squat	Goblet Squat	dumbbell-squat|sumo-squat|squat
+dumbbell-incline-press	Dumbbell Incline Press	incline-bench-press|chest-press|incline-fly|dumbbell-bench-press
+dumbbell-row	One-Arm Dumbbell Row	bent-over-dumbbell-row|bent-over-row|dumbbell-bent-over-row|single-arm-row
+one-arm-dumbbell-row	One Arm Dumbbell Row	bent-over-dumbbell-row|dumbbell-bent-over-row
+seated-row	Seated Row	bent-over-row|dumbbell-bent-over-row|cable-row
+front-lat-pulldowns	Front Lat Pulldowns	wide-grip-lat-pulldown|reverse-grip-lat-pulldown|pulldowns|cable-lat-pulldown
+glute-march	Glute March	hip-bridge|march|hollow-body-march|hip-thrust-march
+side-lying-abductions	Side Lying Abductions	side-lying-hip-abduction|side-leg-raise
+bodyweight-hip-thrust	Bodyweight Hip Thrust	glute-bridge|hip-bridge|bodyweight-glute-bridge|bridge
+foam-roll-quads	Foam Roll Quads	quad-roll|self-myofascial-release-quads|quad-foam-rolling
+foam-roll-lats	Foam Roll Lats	lat-roll|self-myofascial-release-lats|lat-foam-rolling
+stretch-90-90	90/90 Hip Switch	hip-90-90-stretch|seated-90-90|hip-stretch
+stretch-figure-four	Figure-4 Glute Stretch	figure-four|figure-four-pose|glute-stretch
+stretch-one-leg-pike	One-Leg Pike	seated-forward-fold|head-to-knee|janu-sirsasana|seated-single-leg-stretch
+stretch-pancake	Pancake Stretch	straddle|seated-straddle-stretch|wide-leg-forward-fold|forward-fold-straddle
+stretch-rear-hand-clasp	Rear Hand Clasp	cow-face-pose|gomukhasana|behind-the-back-stretch|chest-and-shoulder-stretch
+stretch-standing-backbend	Standing Backbend	standing-back-extension|standing-cobra|crescent|back-bend
+stretch-tspine-rotation	T-Spine Rotation	thoracic-rotation-stretch|spinal-twist|seated-twist|world-greatest-stretch-stretch
+band-anti-rotation-hold	Band Anti Rotation Hold	pallof|cable-pallof|core-press|anti-rotation
+russian-kettlebell-swing	Russian Kettlebell Swing	kettlebell-swing|two-arm-kettlebell-swing|swing
+swiss-ball-crunch	Swiss Ball Crunch	stability-ball-crunch|exercise-ball-crunches|gym-ball-crunch|stability-ball-abs
+torso-elevated-push-up	Torso Elevated Push Up	incline-push-up|incline-pushup|elevated-pushup|incline-press-up
+modified-inverted-row-bar-t-bar-row	Modified Inverted Row T Bar Row	inverted-row|t-bar-row|bodyweight-row|australian-pull-up

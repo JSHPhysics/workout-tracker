@@ -621,8 +621,12 @@ def ts_emit(
     out.append("import type { Exercise, RoutineTemplate } from '../types';")
     out.append("")
 
+    out.append("// Note: `requiredEquipment` / `instructions` / `diagram` are layered")
+    out.append("// on at seed-load time by `src/db/seed-loader.ts` from the enrichment")
+    out.append("// map. The generator omits them so it doesn't need to know about")
+    out.append("// equipment tagging.")
     out.append("export const STRONG_CURVES_EXERCISES: ReadonlyArray<")
-    out.append("  Omit<Exercise, 'isCustom' | 'profileId'>")
+    out.append("  Omit<Exercise, 'isCustom' | 'profileId' | 'requiredEquipment' | 'instructions' | 'diagram'>")
     out.append("> = [")
     for ex in exercises:
         out.append("  {")

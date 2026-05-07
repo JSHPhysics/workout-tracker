@@ -1,0 +1,84 @@
+25-lb-back-extension-reverse-hype	25 lb Back Extension /Reverse Hype	https://spotebi.com/exercise-guide/25-lb-back-extension-reverse-hype/
+25-lb-back-extension-reverse-hyper	25 lb Back Extension /Reverse Hyper	https://spotebi.com/exercise-guide/25-lb-back-extension-reverse-hyper/
+band-anti-rotation-hold	Band Anti Rotation Hold	https://spotebi.com/exercise-guide/anti-rotation-hold/
+barbell-back-squat	Barbell Back Squat	https://spotebi.com/exercise-guide/back-squat/
+barbell-bench-press	Barbell Bench Press	https://spotebi.com/exercise-guide/bench-press/
+barbell-bent-over-row	Barbell Bent-Over Row	https://spotebi.com/exercise-guide/bent-over-row/
+barbell-close-grip-bench-press	Barbell Close Grip Bench Press	https://spotebi.com/exercise-guide/close-grip-bench-press/
+barbell-deadlift	Barbell Deadlift	https://spotebi.com/exercise-guide/deadlift/
+barbell-dumbbell-bench-press	Barbell-Dumbbell Bench Press	https://spotebi.com/exercise-guide/barbell-dumbbell-bench-press/
+barbell-front-squat	Barbell Front Squat	https://spotebi.com/exercise-guide/front-squat/
+barbell-overhead-press	Barbell Overhead Press	https://spotebi.com/exercise-guide/overhead-press/
+barbell-power-clean	Power Clean	https://spotebi.com/exercise-guide/power-clean/
+barbell-romanian-deadlift	Barbell Romanian Deadlift	https://spotebi.com/exercise-guide/romanian-deadlift/
+body-weight-negative-pushup	Body Weight Negative Pushup	https://spotebi.com/exercise-guide/body-weight-negative-pushup/
+bodyweight-barbell-box-squat	Bodyweight-Barbell Box Squat	https://spotebi.com/exercise-guide/bodyweight-barbell-box-squat/
+bodyweight-barbell-glute-bridge	Bodyweight-Barbell Glute Bridge	https://spotebi.com/exercise-guide/bodyweight-barbell-glute-bridge/
+bodyweight-dumbbell-single-leg-rdl	Bodyweight-Dumbbell Single Leg RDL	https://spotebi.com/exercise-guide/bodyweight-dumbbell-single-leg-rdl/
+bodyweight-dumbbell-squat	Bodyweight-Dumbbell Squat	https://spotebi.com/exercise-guide/bodyweight-dumbbell-squat/
+bodyweight-dumbbell-step-up	Bodyweight-Dumbbell Step Up	https://spotebi.com/exercise-guide/bodyweight-dumbbell-step-up/
+bodyweight-hip-hinge-with-dowel	Bodyweight Hip Hinge with Dowel	https://spotebi.com/exercise-guide/hip-hinge-with-dowel/
+bodyweight-hip-thrust	Bodyweight Hip Thrust	https://spotebi.com/exercise-guide/hip-thrust/
+bodyweight-or-45-lb-back-extension	Bodyweight or 45 lb Back Extension	https://spotebi.com/exercise-guide/or-45-lb-back-extension/
+bodyweight-step-up-reverse-lunge-combo	Bodyweight Step Up Reverse Lunge Combo	https://spotebi.com/exercise-guide/step-up-reverse-lunge-combo/
+bodyweight-swiss-ball-45-degree-back-extension	Bodyweight Swiss Ball 45 Degree Back Extension	https://spotebi.com/exercise-guide/swiss-ball-45-degree-back-extension/
+bodyweight-walking-lunge	Bodyweight Walking Lunge	https://spotebi.com/exercise-guide/walking-lunge/
+chin-up	Chin-Up	https://spotebi.com/exercise-guide/chin-up/
+crunch	Crunch	https://spotebi.com/exercise-guide/crunch/
+dumbbell-incline-press	Dumbbell Incline Press	https://spotebi.com/exercise-guide/incline-press/
+dumbbell-military-press-standing	Dumbbell Military Press Standing	https://spotebi.com/exercise-guide/military-press-standing/
+dumbbell-romanian-deadlift	Dumbbell Romanian Deadlift	https://spotebi.com/exercise-guide/romanian-deadlift/
+dumbbell-row	One-Arm Dumbbell Row	https://spotebi.com/exercise-guide/one-arm-dumbbell-row/
+elevated-foot-rkc-plank	Elevated Foot RKC Plank	https://spotebi.com/exercise-guide/elevated-foot-rkc-plank/
+foam-roll-lats	Foam Roll Lats	https://spotebi.com/exercise-guide/foam-roll-lats/
+foam-roll-quads	Foam Roll Quads	https://spotebi.com/exercise-guide/foam-roll-quads/
+front-lat-pulldowns	Front Lat Pulldowns	https://spotebi.com/exercise-guide/front-lat-pulldowns/
+glute-march	Glute March	https://spotebi.com/exercise-guide/glute-march/
+goblet-squat	Goblet Squat	https://spotebi.com/exercise-guide/goblet-squat/
+knee-pushups	Knee Pushups	https://spotebi.com/exercise-guide/knee-pushups/
+modified-inverted-row-bar-t-bar-row	Modified Inverted Row T Bar Row	https://spotebi.com/exercise-guide/modified-inverted-row-bar-t-bar-row/
+negative-chin-up-underhand-grip-pull-down	Negative Chin Up Underhand Grip Pull Down	https://spotebi.com/exercise-guide/negative-chin-up-underhand-grip-pull-down/
+one-arm-dumbbell-row	One Arm Dumbbell Row	https://spotebi.com/exercise-guide/one-arm-dumbbell-row/
+one-arm-dumbbell-row-or-band-pull-or-row-with-bar	One Arm Dumbbell Row or band pull or row with bar	https://spotebi.com/exercise-guide/one-arm-dumbbell-row-or-band-pull-or-row-with-bar/
+plank	Plank	https://spotebi.com/exercise-guide/plank/
+pull-up	Pull-Up	https://spotebi.com/exercise-guide/pull-up/
+push-up	Push-Up	https://spotebi.com/exercise-guide/push-up/
+rkc-plank	RKC Plank	https://spotebi.com/exercise-guide/rkc-plank/
+rope-horizontal-chop	Rope Horizontal Chop	https://spotebi.com/exercise-guide/rope-horizontal-chop/
+russian-kettlebell-swing	Russian Kettlebell Swing	https://spotebi.com/exercise-guide/russian-kettlebell-swing/
+seated-row	Seated Row	https://spotebi.com/exercise-guide/row/
+side-crunch	Side Crunch	https://spotebi.com/exercise-guide/side-crunch/
+side-lying-abduction	Side Lying Abduction	https://spotebi.com/exercise-guide/side-lying-abduction/
+side-lying-abductions	Side Lying Abductions	https://spotebi.com/exercise-guide/side-lying-abductions/
+side-lying-clam	Side Lying Clam	https://spotebi.com/exercise-guide/side-lying-clam/
+side-plank	Side plank	https://spotebi.com/exercise-guide/side-plank/
+side-plank-on-feet	Side plank on feet	https://spotebi.com/exercise-guide/side-plank-on-feet/
+single-leg-glute-bridge	Single-Leg Glute Bridge	https://spotebi.com/exercise-guide/single-leg-glute-bridge/
+standing-single-arm-cable-row	Standing Single Arm Cable Row	https://spotebi.com/exercise-guide/single-arm-cable-row/
+straight-leg-sit-up	Straight Leg Sit Up	https://spotebi.com/exercise-guide/straight-leg-sit-up/
+stretch-90-90	90/90 Hip Switch	https://spotebi.com/exercise-guide/90-90-hip-switch/
+stretch-butterfly	Butterfly Stretch	https://spotebi.com/exercise-guide/butterfly-stretch/
+stretch-calf	Calf Stretch	https://spotebi.com/exercise-guide/calf-stretch/
+stretch-cat-cow	Cat Cow	https://spotebi.com/exercise-guide/cat-cow/
+stretch-child-pose	Childs Pose	https://spotebi.com/exercise-guide/childs-pose/
+stretch-cobra	Cobra Stretch	https://spotebi.com/exercise-guide/cobra-stretch/
+stretch-downward-dog	Downward Dog	https://spotebi.com/exercise-guide/downward-dog/
+stretch-figure-four	Figure-4 Glute Stretch	https://spotebi.com/exercise-guide/figure-4-glute-stretch/
+stretch-hamstring-supine	Supine Hamstring Stretch	https://spotebi.com/exercise-guide/hamstring-stretch/
+stretch-hip-flexor-kneeling	Kneeling Hip Flexor Stretch	https://spotebi.com/exercise-guide/hip-flexor-stretch/
+stretch-lying-cross	Lying Cross Stretch	https://spotebi.com/exercise-guide/cross-stretch/
+stretch-one-leg-pike	One-Leg Pike	https://spotebi.com/exercise-guide/one-leg-pike/
+stretch-pancake	Pancake Stretch	https://spotebi.com/exercise-guide/pancake-stretch/
+stretch-pigeon	Pigeon Pose	https://spotebi.com/exercise-guide/pigeon-pose/
+stretch-quad-standing	Standing Quad Stretch	https://spotebi.com/exercise-guide/quad-stretch/
+stretch-rear-hand-clasp	Rear Hand Clasp	https://spotebi.com/exercise-guide/rear-hand-clasp/
+stretch-shoulder-backbend	Shoulder Backbend	https://spotebi.com/exercise-guide/shoulder-backbend/
+stretch-standing-backbend	Standing Backbend	https://spotebi.com/exercise-guide/backbend/
+stretch-thread-needle	Thread the Needle	https://spotebi.com/exercise-guide/thread-the-needle/
+stretch-tspine-rotation	T-Spine Rotation	https://spotebi.com/exercise-guide/t-spine-rotation/
+stretch-wrist-biceps	Wrist Biceps Stretch	https://spotebi.com/exercise-guide/wrist-biceps-stretch/
+swiss-ball-crunch	Swiss Ball Crunch	https://spotebi.com/exercise-guide/swiss-ball-crunch/
+swiss-ball-side-crunch	Swiss Ball Side Crunch	https://spotebi.com/exercise-guide/swiss-ball-side-crunch/
+torso-elevated-push-up	Torso Elevated Push Up	https://spotebi.com/exercise-guide/torso-elevated-push-up/
+towel-row	Towel Row	https://spotebi.com/exercise-guide/towel-row/
+x-band-walk-or-cable-hip-abductions	X-Band Walk	https://spotebi.com/exercise-guide/x-band-walk-or-cable-hip-abductions/

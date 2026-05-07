@@ -738,7 +738,9 @@ function PlannedRowEditor({
   onRemove: () => void;
   onSwap: () => void;
 }) {
-  const isTimeBased = exercise?.measurementType === 'time_seconds';
+  const isTimeBased =
+    exercise?.measurementType === 'time_seconds' ||
+    exercise?.measurementType === 'walking';
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface px-3 py-2">
@@ -866,6 +868,15 @@ function DurationRangeStepper({
 }
 
 function freshPlanned(ex: Exercise): PlannedExercise {
+  if (ex.measurementType === 'walking') {
+    // Walks default to one ~30 minute "set" — the user logs steps and
+    // actual duration when they tick.
+    return {
+      exerciseId: ex.id,
+      setCount: 1,
+      durationSeconds: { min: 1500, max: 2700 },
+    };
+  }
   if (ex.measurementType === 'time_seconds') {
     return {
       exerciseId: ex.id,

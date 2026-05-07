@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
-import type { Profile } from '../types';
+import type { EquipmentTag, Profile } from '../types';
 
 export async function listProfiles(): Promise<Profile[]> {
   return db.profiles.orderBy('name').toArray();
@@ -25,4 +25,14 @@ export async function setUseBodyweightForVolume(
   enabled: boolean,
 ): Promise<void> {
   await db.profiles.update(profileId, { useBodyweightForVolume: enabled });
+}
+
+/** Replace the profile's equipment list. Caller is responsible for
+ * ensuring `bodyweight` is always present (the picker filter treats
+ * it as implicit, but persisting it makes the toggle UI read cleanly). */
+export async function setProfileEquipment(
+  profileId: string,
+  equipment: EquipmentTag[],
+): Promise<void> {
+  await db.profiles.update(profileId, { equipment });
 }

@@ -1,0 +1,28 @@
+pull-up	Pull-Up	
+chin-up	Chin-Up	
+barbell-overhead-press	Barbell Overhead Press	
+barbell-front-squat	Barbell Front Squat	https://spotebi.com/exercise-guide/squat/
+barbell-power-clean	Power Clean	
+goblet-squat	Goblet Squat	https://spotebi.com/exercise-guide/sumo-squat/
+dumbbell-incline-press	Dumbbell Incline Press	https://spotebi.com/exercise-guide/chest-press/
+dumbbell-row	One-Arm Dumbbell Row	https://spotebi.com/exercise-guide/bent-over-row/
+one-arm-dumbbell-row	One Arm Dumbbell Row	https://spotebi.com/exercise-guide/dumbbell-bent-over-row/
+seated-row	Seated Row	https://spotebi.com/exercise-guide/bent-over-row/
+front-lat-pulldowns	Front Lat Pulldowns	
+glute-march	Glute March	https://spotebi.com/exercise-guide/march/
+side-lying-abductions	Side Lying Abductions	https://spotebi.com/exercise-guide/side-lying-hip-abduction/
+bodyweight-hip-thrust	Bodyweight Hip Thrust	https://spotebi.com/exercise-guide/glute-bridge/
+foam-roll-quads	Foam Roll Quads	
+foam-roll-lats	Foam Roll Lats	
+stretch-90-90	90/90 Hip Switch	
+stretch-figure-four	Figure-4 Glute Stretch	https://spotebi.com/exercise-guide/glute-stretch/
+stretch-one-leg-pike	One-Leg Pike	https://spotebi.com/exercise-guide/head-to-knee/
+stretch-pancake	Pancake Stretch	
+stretch-rear-hand-clasp	Rear Hand Clasp	https://spotebi.com/exercise-guide/cow-face-pose/
+stretch-standing-backbend	Standing Backbend	https://spotebi.com/exercise-guide/crescent/
+stretch-tspine-rotation	T-Spine Rotation	
+band-anti-rotation-hold	Band Anti Rotation Hold	
+russian-kettlebell-swing	Russian Kettlebell Swing	
+swiss-ball-crunch	Swiss Ball Crunch	
+torso-elevated-push-up	Torso Elevated Push Up	
+modified-inverted-row-bar-t-bar-row	Modified Inverted Row T Bar Row	

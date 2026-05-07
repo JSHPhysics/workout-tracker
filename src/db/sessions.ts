@@ -41,6 +41,34 @@ export async function createSession(input: CreateSessionInput): Promise<string> 
   return id;
 }
 
+/** Persist the pre-workout mood + energy ratings on the session.
+ * `null` for either field clears that rating. Same Dexie escape
+ * hatch (`Partial<Session>`) as `updateRpe`/`updateNotes` —
+ * documented in DECISIONS milestone 7. */
+export async function setPreWellbeing(
+  sessionId: string,
+  mood: number | null,
+  energy: number | null,
+): Promise<void> {
+  await db.sessions.update(sessionId, {
+    moodBefore: mood ?? undefined,
+    energyBefore: energy ?? undefined,
+  } as Partial<Session>);
+}
+
+/** Persist the post-workout mood + energy ratings on the session.
+ * Same semantics as `setPreWellbeing`. */
+export async function setPostWellbeing(
+  sessionId: string,
+  mood: number | null,
+  energy: number | null,
+): Promise<void> {
+  await db.sessions.update(sessionId, {
+    moodAfter: mood ?? undefined,
+    energyAfter: energy ?? undefined,
+  } as Partial<Session>);
+}
+
 /** Finish a session: stamp completedAt, detect any PRs across the
  * session's set logs, persist `PRRecord` rows, annotate each `SetLog`
  * with its `prTypes`, and cache `prCount` on the session. Returns the

@@ -11,6 +11,7 @@ import { primeAudio } from '../lib/cue';
 import { NumberStepper } from './NumberStepper';
 import { PRBadges } from './PRBadges';
 import { PlateViz } from './PlateViz';
+import { RatingChips } from './RatingChips';
 import { SetTypeChip } from './SetTypeChip';
 import type {
   Exercise,
@@ -78,6 +79,7 @@ export function SetRow({
   useBodyweightForVolume,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
+  const isWalking = exercise.measurementType === 'walking';
   const isBodyweight =
     exercise.measurementType === 'bodyweight_reps' && !exercise.usesBarbell;
 
@@ -88,13 +90,16 @@ export function SetRow({
     ? Math.round(
         (planned.durationSeconds.min + planned.durationSeconds.max) / 2,
       )
-    : 0;
+    : isWalking
+      ? 1800 // 30 min default if no plan
+      : 0;
 
   const [weight, setWeight] = useState<number>(existingLog?.weight ?? 0);
   const [reps, setReps] = useState<number>(existingLog?.reps ?? defaultReps);
   const [duration, setDuration] = useState<number>(
     existingLog?.durationSeconds ?? defaultDuration,
   );
+  const [steps, setSteps] = useState<number>(existingLog?.steps ?? 0);
   const [setType, setSetType] = useState<SetType>(
     existingLog?.setType ?? 'working',
   );
@@ -108,6 +113,7 @@ export function SetRow({
       setWeight(existingLog.weight ?? 0);
       setReps(existingLog.reps ?? defaultReps);
       setDuration(existingLog.durationSeconds ?? defaultDuration);
+      setSteps(existingLog.steps ?? 0);
       setSetType(existingLog.setType);
       setRpe(existingLog.rpe ?? null);
       setNotes(existingLog.notes ?? '');
@@ -132,6 +138,19 @@ export function SetRow({
         isBodyweight && useBodyweightForVolume && latestBodyweight !== null
           ? { weight: latestBodyweight }
           : {};
+      // Per measurement type, supply the right metric set:
+      //   weight_reps      → weight + reps
+      //   bodyweight_reps  → reps (+ weight from latest weigh-in if toggle on)
+      //   time_seconds     → durationSeconds
+      //   walking          → durationSeconds (if any) + steps (if any)
+      const metrics = isWalking
+        ? {
+            ...(duration > 0 ? { durationSeconds: duration } : {}),
+            ...(steps > 0 ? { steps } : {}),
+          }
+        : isTimeBased
+          ? { durationSeconds: duration }
+          : { reps, ...(isBodyweight ? bodyweightLoad : { weight }) };
       await logSet({
         sessionId,
         exerciseId: exercise.id,
@@ -139,9 +158,7 @@ export function SetRow({
         exerciseOrder,
         setNumber,
         setType,
-        ...(isTimeBased
-          ? { durationSeconds: duration }
-          : { reps, ...(isBodyweight ? bodyweightLoad : { weight }) }),
+        ...metrics,
         ...(rpe !== null ? { rpe } : {}),
         ...(notes.trim() !== '' ? { notes } : {}),
       });
@@ -219,7 +236,7 @@ export function SetRow({
       </div>
 
       <div className="flex flex-1 flex-wrap items-center gap-2">
-        {!isTimeBased && !isBodyweight && (
+        {!isTimeBased && !isBodyweight && !isWalking && (
           <NumberStepper
             value={weight}
             onChange={setWeight}
@@ -230,7 +247,7 @@ export function SetRow({
             width={6}
           />
         )}
-        {!isTimeBased && (
+        {!isTimeBased && !isWalking && (
           <NumberStepper
             value={reps}
             onChange={setReps}
@@ -251,6 +268,32 @@ export function SetRow({
             format={(v) => `${v}s`}
             width={5}
           />
+        )}
+        {isWalking && (
+          <>
+            <NumberStepper
+              value={duration}
+              onChange={setDuration}
+              step={60}
+              min={0}
+              max={36000}
+              ariaLabel="Duration in minutes"
+              disabled={completed || blockSkipped}
+              format={(v) => `${Math.round(v / 60)} min`}
+              width={6}
+            />
+            <NumberStepper
+              value={steps}
+              onChange={setSteps}
+              step={500}
+              min={0}
+              max={100000}
+              ariaLabel="Steps"
+              disabled={completed || blockSkipped}
+              format={(v) => `${v.toLocaleString()} steps`}
+              width={9}
+            />
+          </>
         )}
       </div>
 
@@ -358,28 +401,14 @@ function SetExtras({
             <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
               RPE
             </span>
-            <div className="flex flex-wrap gap-1">
-              {RPE_OPTIONS.map((v) => {
-                const active = rpe === v;
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => onRpeChange(active ? null : v)}
-                    disabled={disabled}
-                    aria-pressed={active}
-                    className={[
-                      'min-h-[32px] min-w-[32px] rounded-full px-2 text-[0.7rem] font-medium tabular-nums transition',
-                      active
-                        ? 'bg-accent text-accent-fg'
-                        : 'bg-surface-soft text-fg-muted hover:bg-surface-elevated hover:text-fg',
-                      disabled ? 'cursor-not-allowed opacity-50' : '',
-                    ].join(' ')}
-                  >
-                    {v}
-                  </button>
-                );
-              })}
+            <div className="flex flex-wrap items-center gap-1">
+              <RatingChips
+                value={rpe}
+                onChange={onRpeChange}
+                options={RPE_OPTIONS.map((v) => ({ value: v, label: `${v}` }))}
+                ariaLabel="Rate of perceived exertion"
+                disabled={disabled}
+              />
               {rpe !== null && (
                 <button
                   type="button"

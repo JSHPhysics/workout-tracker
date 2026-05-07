@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   appendBlock,
@@ -6,6 +6,8 @@ import {
   discardSession,
   finishSession,
   setBlockSkipped,
+  setPostWellbeing,
+  setPreWellbeing,
   swapExercise,
   useSession,
 } from '../db/sessions';
@@ -15,12 +17,20 @@ import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
 import { useLatestBodyweight } from '../db/bodyweight';
 import { useProfile } from '../db/profiles';
 import { ElapsedTime } from '../components/ElapsedTime';
+import { ExerciseDetail } from '../components/ExerciseDetail';
 import { ExercisePicker } from '../components/ExercisePicker';
 import { PRCelebration } from '../components/PRCelebration';
 import { BackupPromptModal } from '../components/BackupPromptModal';
 import { staleness } from '../components/BackupSection';
 import { RestTimerBar } from '../components/RestTimerBar';
 import { SetRow } from '../components/SetRow';
+import { WellbeingPromptModal } from '../components/WellbeingPromptModal';
+import {
+  RATING_EMOJI,
+  RATING_LABELS,
+  hasAnyRating,
+  snapshotFromSession,
+} from '../domain/wellbeing';
 import { useRestTimer } from '../state/restTimer';
 import type { PRAward } from '../domain/pr-detection';
 import type {
@@ -34,6 +44,16 @@ import type {
 type EditTarget =
   | { kind: 'add' }
   | { kind: 'swap'; blockOrder: number; exerciseOrder: number };
+
+/** Wellbeing-prompt mode: which slot is being captured / edited. */
+type WellbeingTarget = 'before' | 'after' | 'edit';
+
+/** Per-session memory of which pre-prompts the user has dismissed
+ * with Skip. Keeps refreshes from re-prompting mid-session. Module-
+ * scope = resets on full app reload, which is acceptable: the Skip is
+ * a soft "not now" signal, not a settings choice. */
+const PRE_PROMPT_DISMISSED = new Set<string>();
+const POST_PROMPT_DISMISSED = new Set<string>();
 
 export function Session() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +70,24 @@ export function Session() {
   const [pickerTarget, setPickerTarget] = useState<EditTarget | null>(null);
   const [celebration, setCelebration] = useState<PRAward[] | null>(null);
   const [backupPrompt, setBackupPrompt] = useState(false);
+  const [wellbeingTarget, setWellbeingTarget] =
+    useState<WellbeingTarget | null>(null);
+
+  // Pre-prompt fires once per session-load when the session is fresh
+  // and no pre-ratings are recorded. Dismissed-set blocks re-prompts
+  // after Skip (until full app reload).
+  useEffect(() => {
+    if (!session) return;
+    if (session.completedAt !== null) return;
+    if (PRE_PROMPT_DISMISSED.has(session.id)) return;
+    if (
+      session.moodBefore !== undefined ||
+      session.energyBefore !== undefined
+    ) {
+      return;
+    }
+    setWellbeingTarget('before');
+  }, [session]);
 
   const logsByKey = useMemo(() => {
     const map = new Map<string, SetLog>();
@@ -83,24 +121,42 @@ export function Session() {
     try {
       const awards = await finishSession(id);
       dismissRest();
-      const stale = profile
-        ? staleness(profile.lastBackupAt).severity !== 'fresh'
-        : false;
+      // Post-finish modal chain:
+      //   (PR celebration if any) → wellbeing-after → (backup if stale) → navigate.
+      // Each stage chains forward in its own onClose handler.
       if (awards.length > 0) {
-        // Celebration first; backup prompt fires (if needed) on close.
         setCelebration(awards);
-      } else if (stale) {
-        setBackupPrompt(true);
       } else {
-        navigate('/history');
+        advanceFromCelebration();
       }
     } finally {
       setBusy(null);
     }
   };
 
-  const closeCelebration = () => {
-    setCelebration(null);
+  const advanceFromCelebration = () => {
+    if (!session) return;
+    // Skip the post-wellbeing prompt if the user has already filled
+    // both ratings in (e.g. they finish from the read-only view, or
+    // re-finish a session somehow) or if this session id was dismissed.
+    const alreadyRated =
+      session.moodAfter !== undefined && session.energyAfter !== undefined;
+    if (
+      !alreadyRated &&
+      !POST_PROMPT_DISMISSED.has(session.id) &&
+      !session.completedAt
+    ) {
+      // Note: we read session.completedAt here from the live snapshot;
+      // by the time `finishSession` resolves Dexie has stamped it, but
+      // this guard is defensive in case a reflow re-fires. The prompt
+      // is unconditional otherwise — the user can always Skip.
+      setWellbeingTarget('after');
+      return;
+    }
+    advanceFromWellbeing();
+  };
+
+  const advanceFromWellbeing = () => {
     const stale = profile
       ? staleness(profile.lastBackupAt).severity !== 'fresh'
       : false;
@@ -111,9 +167,55 @@ export function Session() {
     }
   };
 
+  const closeCelebration = () => {
+    setCelebration(null);
+    advanceFromCelebration();
+  };
+
   const closeBackupPrompt = () => {
     setBackupPrompt(false);
     navigate('/history');
+  };
+
+  const handleWellbeingSave = async (
+    mood: number | null,
+    energy: number | null,
+  ) => {
+    if (!session) return;
+    const target = wellbeingTarget;
+    setWellbeingTarget(null);
+    if (target === 'before') {
+      await setPreWellbeing(session.id, mood, energy);
+      // Pre-prompt: don't chain anywhere; the user is still in-session.
+    } else if (target === 'after') {
+      await setPostWellbeing(session.id, mood, energy);
+      advanceFromWellbeing();
+    } else if (target === 'edit') {
+      // Edit mode covers both pre and post — let the user fill in
+      // anything on a completed-session card. Heuristic: if either
+      // post field had a value, treat the edit as the post slot;
+      // otherwise the pre slot.
+      const editingPost =
+        session.moodAfter !== undefined || session.energyAfter !== undefined;
+      if (editingPost) {
+        await setPostWellbeing(session.id, mood, energy);
+      } else {
+        await setPreWellbeing(session.id, mood, energy);
+      }
+    }
+  };
+
+  const handleWellbeingSkip = () => {
+    if (!session) return;
+    const target = wellbeingTarget;
+    setWellbeingTarget(null);
+    if (target === 'before') {
+      PRE_PROMPT_DISMISSED.add(session.id);
+    } else if (target === 'after') {
+      POST_PROMPT_DISMISSED.add(session.id);
+      advanceFromWellbeing();
+    }
+    // edit-mode skip is just "cancel" — no dismissal memory needed.
   };
 
   const discard = async () => {
@@ -188,6 +290,13 @@ export function Session() {
           sets logged
         </p>
       </header>
+
+      {sessionDone && (
+        <WellbeingCard
+          session={session}
+          onEdit={() => setWellbeingTarget('edit')}
+        />
+      )}
 
       {livePlan.length === 0 ? (
         <EmptyPlan
@@ -284,6 +393,29 @@ export function Session() {
 
       {backupPrompt && profile && (
         <BackupPromptModal profile={profile} onClose={closeBackupPrompt} />
+      )}
+
+      {wellbeingTarget && (
+        <WellbeingPromptModal
+          mode={wellbeingTarget}
+          {...(wellbeingTarget === 'edit'
+            ? {
+                initial:
+                  session.moodAfter !== undefined ||
+                  session.energyAfter !== undefined
+                    ? {
+                        mood: session.moodAfter ?? null,
+                        energy: session.energyAfter ?? null,
+                      }
+                    : {
+                        mood: session.moodBefore ?? null,
+                        energy: session.energyBefore ?? null,
+                      },
+              }
+            : {})}
+          onSave={handleWellbeingSave}
+          onSkip={handleWellbeingSkip}
+        />
       )}
 
       <ExercisePicker
@@ -460,6 +592,7 @@ function ExerciseGroup({
   useBodyweightForVolume,
   onSwap,
 }: ExerciseGroupProps) {
+  const [previewing, setPreviewing] = useState(false);
   if (!exercise) {
     return (
       <div className="text-sm text-fg-muted">
@@ -479,9 +612,15 @@ function ExerciseGroup({
               {supersetMarker}
             </span>
           )}
-          <h3 className="text-sm font-medium leading-snug text-fg">
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            className="text-left text-sm font-medium leading-snug text-fg transition hover:text-accent"
+            title="How to do this exercise"
+          >
             {exercise.name}
-          </h3>
+            <span aria-hidden className="ml-1 text-fg-faint">?</span>
+          </button>
         </div>
         <span className="shrink-0 text-xs tabular-nums text-fg-muted">
           {target}
@@ -547,7 +686,106 @@ function ExerciseGroup({
           </button>
         </div>
       )}
+      {previewing && (
+        <ExerciseDetail
+          exercise={exercise}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
     </div>
+  );
+}
+
+interface WellbeingCardProps {
+  session: import('../types').Session;
+  onEdit: () => void;
+}
+
+function WellbeingCard({ session, onEdit }: WellbeingCardProps) {
+  const snap = snapshotFromSession(session);
+  const empty = !hasAnyRating(snap);
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      aria-label={empty ? 'Add wellbeing ratings' : 'Edit wellbeing ratings'}
+      className="group flex flex-col gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-lift"
+    >
+      <header className="flex items-baseline justify-between">
+        <span className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
+          Wellbeing
+        </span>
+        <span
+          aria-hidden
+          className="text-[0.65rem] uppercase tracking-[0.16em] text-fg-faint group-hover:text-accent"
+        >
+          {empty ? '+ Add' : 'Edit'}
+        </span>
+      </header>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <RatingPair label="Mood" before={snap.moodBefore} after={snap.moodAfter} />
+        <RatingPair label="Energy" before={snap.energyBefore} after={snap.energyAfter} />
+      </div>
+    </button>
+  );
+}
+
+function RatingPair({
+  label,
+  before,
+  after,
+}: {
+  label: string;
+  before: number | null;
+  after: number | null;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+        {label}
+      </span>
+      <div className="flex items-baseline gap-2">
+        <RatingValue value={before} hint="before" />
+        <span aria-hidden className="text-fg-faint">
+          →
+        </span>
+        <RatingValue value={after} hint="after" />
+      </div>
+    </div>
+  );
+}
+
+function RatingValue({
+  value,
+  hint,
+}: {
+  value: number | null;
+  hint: 'before' | 'after';
+}) {
+  if (value === null) {
+    return (
+      <span
+        className="text-[0.6rem] uppercase tracking-[0.14em] text-fg-faint"
+        title={`No ${hint} rating recorded`}
+      >
+        —
+      </span>
+    );
+  }
+  const idx = Math.min(Math.max(value, 1), 5) - 1;
+  return (
+    <span
+      className="flex items-baseline gap-1 text-fg"
+      title={`${hint}: ${RATING_LABELS[idx]}`}
+    >
+      <span aria-hidden className="text-base">
+        {RATING_EMOJI[idx]}
+      </span>
+      <span className="text-[0.65rem] uppercase tracking-[0.14em] text-fg-muted">
+        {RATING_LABELS[idx]}
+      </span>
+    </span>
   );
 }
 
@@ -565,7 +803,9 @@ function mergePlanForSwap(
   next: Exercise,
 ): PlannedExercise {
   const oldIsTime = existing.durationSeconds !== undefined;
-  const newIsTime = next.measurementType === 'time_seconds';
+  const newIsTime =
+    next.measurementType === 'time_seconds' ||
+    next.measurementType === 'walking';
   if (oldIsTime !== newIsTime) {
     // Measurement type mismatch — start fresh.
     return { ...plannedFromExercise(next), setCount: existing.setCount };
@@ -587,8 +827,16 @@ function mergePlanForSwap(
 
 function plannedFromExercise(exercise: Exercise): PlannedExercise {
   // Sensible default plan for a freshly-added exercise: 3 sets of
-  // 8–12 reps for weight/bodyweight, 30–60s for time-based. The user
-  // can tweak via +/− Set / per-set steppers.
+  // 8–12 reps for weight/bodyweight, 30–60s for time-based, one
+  // ~30 minute "set" for walking. The user can tweak via +/− Set or
+  // the per-set steppers.
+  if (exercise.measurementType === 'walking') {
+    return {
+      exerciseId: exercise.id,
+      setCount: 1,
+      durationSeconds: { min: 1500, max: 2700 },
+    };
+  }
   if (exercise.measurementType === 'time_seconds') {
     return {
       exerciseId: exercise.id,
@@ -609,9 +857,14 @@ function formatTarget(planned: PlannedExercise): string {
   if (planned.reps) {
     parts.push(`${planned.reps.min}–${planned.reps.max} reps`);
   } else if (planned.durationSeconds) {
-    parts.push(
-      `${planned.durationSeconds.min}–${planned.durationSeconds.max}s`,
-    );
+    // For long durations (≥ 5 minutes — walks, long holds, intervals)
+    // display in minutes; everything shorter stays in seconds.
+    const { min, max } = planned.durationSeconds;
+    if (min >= 300) {
+      parts.push(`${Math.round(min / 60)}–${Math.round(max / 60)} min`);
+    } else {
+      parts.push(`${min}–${max}s`);
+    }
   } else {
     parts.push('—');
   }

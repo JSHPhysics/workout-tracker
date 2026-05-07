@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useExercises } from '../db/exercises';
-import type { Exercise } from '../types';
+import { useActiveProfile } from '../state/activeProfile';
+import { useProfile } from '../db/profiles';
+import { ExerciseDetail } from './ExerciseDetail';
+import type { EquipmentTag, Exercise } from '../types';
 
 interface Props {
   open: boolean;
@@ -13,6 +16,18 @@ interface Props {
   excludeId?: string;
 }
 
+/** True when the user can perform the exercise with their current
+ * equipment. `bodyweight` is always implicitly available. */
+function canPerform(
+  required: readonly EquipmentTag[],
+  available: readonly EquipmentTag[],
+): boolean {
+  if (required.length === 0) return true;
+  const set = new Set<EquipmentTag>(available);
+  set.add('bodyweight');
+  return required.every((t) => set.has(t));
+}
+
 export function ExercisePicker({
   open,
   onClose,
@@ -21,27 +36,42 @@ export function ExercisePicker({
   excludeId,
 }: Props) {
   const exercises = useExercises();
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const profile = useProfile(profileId);
   const [query, setQuery] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const [previewing, setPreviewing] = useState<Exercise | null>(null);
 
-  // Reset query whenever the picker re-opens.
+  // Reset state whenever the picker re-opens.
   useEffect(() => {
-    if (open) setQuery('');
+    if (open) {
+      setQuery('');
+      setShowAll(false);
+      setPreviewing(null);
+    }
   }, [open]);
 
-  // Esc closes.
+  // Esc closes — preview first, then picker.
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (previewing) setPreviewing(null);
+      else onClose();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, onClose, previewing]);
+
+  const available = profile?.equipment ?? [];
 
   const filtered = useMemo(() => {
     if (!exercises) return [];
     const q = query.trim().toLowerCase();
     let list = exercises.filter((e) => e.id !== excludeId);
+    if (!showAll && available.length > 0) {
+      list = list.filter((e) => canPerform(e.requiredEquipment, available));
+    }
     if (q) {
       list = list.filter(
         (e) =>
@@ -51,7 +81,15 @@ export function ExercisePicker({
       );
     }
     return list;
-  }, [exercises, query, excludeId]);
+  }, [exercises, query, excludeId, showAll, available]);
+
+  const hiddenByEquipmentCount = useMemo(() => {
+    if (!exercises || showAll) return 0;
+    return exercises.filter(
+      (e) =>
+        e.id !== excludeId && !canPerform(e.requiredEquipment, available),
+    ).length;
+  }, [exercises, excludeId, showAll, available]);
 
   if (!open) return null;
 
@@ -87,7 +125,7 @@ export function ExercisePicker({
           </button>
         </header>
 
-        <div className="px-5 py-3">
+        <div className="flex flex-col gap-2 px-5 py-3">
           <input
             type="text"
             value={query}
@@ -96,6 +134,22 @@ export function ExercisePicker({
             autoFocus
             className="w-full rounded-full border border-line bg-surface-soft px-4 py-2.5 text-sm text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
+          {available.length > 0 && (
+            <label className="flex items-center justify-between gap-2 px-1 text-[0.65rem] uppercase tracking-[0.16em] text-fg-muted">
+              <span>
+                {showAll
+                  ? 'Showing all exercises'
+                  : `Filtering by your equipment${hiddenByEquipmentCount > 0 ? ` · ${hiddenByEquipmentCount} hidden` : ''}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="rounded-full px-3 py-1 text-[0.65rem] uppercase tracking-[0.16em] text-fg-faint transition hover:text-accent"
+              >
+                {showAll ? 'Hide unavailable' : 'Show all'}
+              </button>
+            </label>
+          )}
         </div>
 
         <ul className="flex-1 overflow-y-auto px-3 pb-4">
@@ -106,32 +160,50 @@ export function ExercisePicker({
           ) : (
             filtered.map((ex) => (
               <li key={ex.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(ex)}
-                  className="flex w-full items-baseline justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-surface-soft"
-                >
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium text-fg">
-                      {ex.name}
+                <div className="flex items-stretch gap-1 rounded-xl transition hover:bg-surface-soft">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(ex)}
+                    className="flex flex-1 items-baseline justify-between gap-3 px-3 py-2.5 text-left"
+                  >
+                    <span className="flex flex-col">
+                      <span className="text-sm font-medium text-fg">
+                        {ex.name}
+                      </span>
+                      <span className="text-[0.7rem] uppercase tracking-[0.14em] text-fg-faint">
+                        {ex.category}
+                        {ex.primaryMuscles.length > 0 &&
+                          ` · ${ex.primaryMuscles.join(', ')}`}
+                      </span>
                     </span>
-                    <span className="text-[0.7rem] uppercase tracking-[0.14em] text-fg-faint">
-                      {ex.category}
-                      {ex.primaryMuscles.length > 0 &&
-                        ` · ${ex.primaryMuscles.join(', ')}`}
-                    </span>
-                  </span>
-                  {ex.usesBarbell && (
-                    <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.16em] text-accent">
-                      Barbell
-                    </span>
-                  )}
-                </button>
+                    {ex.usesBarbell && (
+                      <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.16em] text-accent">
+                        Barbell
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewing(ex)}
+                    aria-label={`How to do ${ex.name}`}
+                    className="flex w-9 shrink-0 items-center justify-center rounded-r-xl text-fg-faint transition hover:bg-surface-elevated hover:text-accent"
+                    title="How to"
+                  >
+                    ?
+                  </button>
+                </div>
               </li>
             ))
           )}
         </ul>
       </div>
+
+      {previewing && (
+        <ExerciseDetail
+          exercise={previewing}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
     </div>
   );
 }

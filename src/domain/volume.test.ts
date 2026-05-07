@@ -37,6 +37,7 @@ function exercise(
     defaultRestSeconds: 90,
     perSide: false,
     usesBarbell: true,
+    requiredEquipment: [],
     isCustom: false,
     profileId: null,
   };

@@ -12,6 +12,7 @@ interface LogSetInput {
   weight?: number;
   reps?: number;
   durationSeconds?: number;
+  steps?: number;
   rpe?: number;
   notes?: string;
   side?: 'left' | 'right' | null;
@@ -32,6 +33,7 @@ export async function logSet(input: LogSetInput): Promise<string> {
     ...(input.durationSeconds !== undefined
       ? { durationSeconds: input.durationSeconds }
       : {}),
+    ...(input.steps !== undefined ? { steps: input.steps } : {}),
     ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
     ...(input.notes !== undefined && input.notes.trim() !== ''
       ? { notes: input.notes.trim() }

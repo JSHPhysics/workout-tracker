@@ -6,6 +6,7 @@ export type {
   DayKind,
   DayTemplate,
   DurationRange,
+  EquipmentTag,
   Exercise,
   ExerciseCategory,
   MeasurementType,
@@ -26,6 +27,8 @@ export type {
   WeekTemplate,
 } from './domain';
 export {
+  EQUIPMENT_LABELS,
+  EQUIPMENT_TAGS,
   EXERCISE_CATEGORIES,
   MEASUREMENT_TYPES,
   MUSCLE_GROUPS,

@@ -27,6 +27,13 @@ import { BodyweightLogger } from '../components/BodyweightLogger';
 import { computeStreak, localDateKey } from '../domain/streak';
 import { epleyE1RM } from '../domain/e1rm';
 import { sessionDurationMs, volumeByMuscle } from '../domain/volume';
+import {
+  RATING_EMOJI,
+  averageEnergyLift,
+  averageMoodLift,
+  snapshotFromSession,
+  type WellbeingSnapshot,
+} from '../domain/wellbeing';
 import type { Exercise, MuscleGroup, PRRecord, PRType, SetLog } from '../types';
 
 const TZ =
@@ -130,6 +137,8 @@ export function Progress() {
             exerciseMap={exerciseMap}
             range={range}
           />
+
+          <MoodEnergyChart summaries={summaries} range={range} />
 
           <ExerciseDrillDown
             profileId={profileId}
@@ -420,6 +429,221 @@ function PRTimeline({
         </ul>
       )}
     </article>
+  );
+}
+
+// --- Mood & energy ---------------------------------------------------------
+
+interface WellbeingPoint {
+  date: string;
+  moodBefore: number | null;
+  moodAfter: number | null;
+  energyBefore: number | null;
+  energyAfter: number | null;
+}
+
+function MoodEnergyChart({
+  summaries,
+  range,
+}: {
+  summaries: SessionSummary[] | undefined;
+  range: Range;
+}) {
+  const { points, snapshots } = useMemo(() => {
+    if (!summaries) return { points: null, snapshots: null };
+    const now = new Date();
+    const days = RANGE_DAYS[range];
+    const filtered = summaries.filter(
+      (s) =>
+        s.session.completedAt !== null &&
+        withinRange(s.session.completedAt, days, now),
+    );
+    // Oldest-first for the line chart.
+    const ordered = [...filtered].reverse();
+    const ps: WellbeingPoint[] = ordered.map((s) => {
+      const snap = snapshotFromSession(s.session);
+      return {
+        date: localDateKey(new Date(s.session.completedAt!), TZ),
+        moodBefore: snap.moodBefore,
+        moodAfter: snap.moodAfter,
+        energyBefore: snap.energyBefore,
+        energyAfter: snap.energyAfter,
+      };
+    });
+    const snaps: WellbeingSnapshot[] = ordered.map((s) =>
+      snapshotFromSession(s.session),
+    );
+    return { points: ps, snapshots: snaps };
+  }, [summaries, range]);
+
+  const moodLift = snapshots ? averageMoodLift(snapshots) : null;
+  const energyLift = snapshots ? averageEnergyLift(snapshots) : null;
+
+  const hasAnyData =
+    points !== null &&
+    points.some(
+      (p) =>
+        p.moodBefore !== null ||
+        p.moodAfter !== null ||
+        p.energyBefore !== null ||
+        p.energyAfter !== null,
+    );
+
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex items-baseline justify-between">
+        <h2 className="font-display text-base font-medium">Mood & energy</h2>
+        <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+          {RANGE_LABEL[range]}
+        </span>
+      </header>
+
+      {points === null ? (
+        <div className="h-32 animate-pulse rounded-xl bg-surface-soft" />
+      ) : !hasAnyData ? (
+        <p className="rounded-xl bg-surface-soft/60 p-3 text-xs text-fg-muted">
+          Log a few workouts with mood + energy to see the trend.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <LiftPill
+              label="Avg mood lift"
+              value={moodLift}
+              positiveEmoji="🙂"
+              negativeEmoji="🙁"
+            />
+            <LiftPill
+              label="Avg energy lift"
+              value={energyLift}
+              positiveEmoji="⚡"
+              negativeEmoji="🥱"
+            />
+          </div>
+          <div className="h-40 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={points}
+                margin={{ top: 8, right: 4, bottom: 0, left: -16 }}
+              >
+                <CartesianGrid stroke={tk('line')} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: tk('fg-faint') }}
+                  tickFormatter={(d) =>
+                    DATE_LABEL.format(new Date(`${d}T12:00:00Z`))
+                  }
+                  minTickGap={24}
+                />
+                <YAxis
+                  domain={[1, 5]}
+                  ticks={[1, 2, 3, 4, 5]}
+                  tick={{ fontSize: 9, fill: tk('fg-faint') }}
+                  tickFormatter={(v) => RATING_EMOJI[v - 1] ?? `${v}`}
+                  width={28}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: tk('surface-elevated'),
+                    border: `1px solid ${tk('line')}`,
+                    borderRadius: 8,
+                    fontSize: 11,
+                  }}
+                  labelFormatter={(d) =>
+                    DATE_LABEL.format(new Date(`${d}T12:00:00Z`))
+                  }
+                  formatter={(v: number, name: string) => [
+                    v,
+                    {
+                      moodBefore: 'Mood before',
+                      moodAfter: 'Mood after',
+                      energyBefore: 'Energy before',
+                      energyAfter: 'Energy after',
+                    }[name] ?? name,
+                  ]}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Line
+                  type="monotone"
+                  name="Mood after"
+                  dataKey="moodAfter"
+                  stroke={tk('accent')}
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: tk('accent') }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  name="Mood before"
+                  dataKey="moodBefore"
+                  stroke={tk('accent')}
+                  strokeWidth={1.2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  name="Energy after"
+                  dataKey="energyAfter"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: '#f59e0b' }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  name="Energy before"
+                  dataKey="energyBefore"
+                  stroke="#f59e0b"
+                  strokeWidth={1.2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+function LiftPill({
+  label,
+  value,
+  positiveEmoji,
+  negativeEmoji,
+}: {
+  label: string;
+  value: number | null;
+  positiveEmoji: string;
+  negativeEmoji: string;
+}) {
+  const empty = value === null;
+  const positive = !empty && value > 0;
+  const sign = empty ? '' : value > 0 ? '+' : '';
+  const display = empty ? '—' : `${sign}${value.toFixed(1)}`;
+  const emoji = empty ? '·' : positive ? positiveEmoji : negativeEmoji;
+  return (
+    <div className="flex flex-col gap-0.5 rounded-xl border border-line bg-surface-soft px-3 py-2">
+      <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-muted">
+        {label}
+      </span>
+      <span className="flex items-baseline gap-1.5">
+        <span aria-hidden className="text-base">
+          {emoji}
+        </span>
+        <span className="font-display text-lg font-medium tabular-nums">
+          {display}
+        </span>
+      </span>
+    </div>
   );
 }
 

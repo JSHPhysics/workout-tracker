@@ -10,7 +10,16 @@ import {
   useDefaultBarbell,
   usePlateInventory,
 } from '../db/equipment';
-import { setUseBodyweightForVolume, useProfile } from '../db/profiles';
+import {
+  setProfileEquipment,
+  setUseBodyweightForVolume,
+  useProfile,
+} from '../db/profiles';
+import {
+  EQUIPMENT_LABELS,
+  EQUIPMENT_TAGS,
+  type EquipmentTag,
+} from '../types';
 import { clearSessionData, seedSyntheticHistory } from '../db/syntheticData';
 import {
   BackupSection,
@@ -117,7 +126,54 @@ function Preferences() {
           />
         </label>
       </article>
+      <EquipmentPicker profile={profile} />
     </section>
+  );
+}
+
+function EquipmentPicker({ profile }: { profile: Profile }) {
+  const selected = new Set<EquipmentTag>(profile.equipment);
+  const toggle = (tag: EquipmentTag) => {
+    const next = new Set(selected);
+    if (next.has(tag)) next.delete(tag);
+    else next.add(tag);
+    // Bodyweight is always implicitly available — keep it in the list
+    // so the picker filter reads cleanly.
+    next.add('bodyweight');
+    void setProfileEquipment(profile.id, Array.from(next));
+  };
+
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h3 className="font-display text-base font-medium">Available equipment</h3>
+        <p className="text-xs text-fg-muted">
+          The exercise picker hides anything you can't perform with this kit.
+        </p>
+      </header>
+      <ul className="grid grid-cols-2 gap-1.5">
+        {EQUIPMENT_TAGS.filter((t) => t !== 'bodyweight').map((tag) => {
+          const on = selected.has(tag);
+          return (
+            <li key={tag}>
+              <button
+                type="button"
+                onClick={() => toggle(tag)}
+                aria-pressed={on}
+                className={[
+                  'w-full rounded-full border px-3 py-1.5 text-left text-xs transition',
+                  on
+                    ? 'border-transparent bg-accent text-accent-fg'
+                    : 'border-line bg-surface-soft text-fg-muted hover:border-line-strong hover:text-fg',
+                ].join(' ')}
+              >
+                {EQUIPMENT_LABELS[tag]}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </article>
   );
 }
 

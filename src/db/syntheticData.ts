@@ -224,14 +224,41 @@ export async function seedSyntheticHistory(
       // We then overwrite completedAt with the synthetic timestamp.
       await finishSession(sessionId);
       const finalTime = logTime + 60_000;
-      await db.sessions.update(sessionId, {
-        completedAt: new Date(finalTime).toISOString(),
-      });
+      // Synthetic mood + energy. Plausible-looking distributions:
+      //   • Mood lifts about +0.6 on average (workouts are good for you).
+      //   • Energy dips about -0.2 (fatigue), but with high variance.
+      //   • Skip ~10% of sessions entirely (left undefined) so the chart
+      //     also exercises the "missing data" rendering path.
+      const skipWellbeing = rand() < 0.1;
+      if (!skipWellbeing) {
+        const moodBefore = clampRating(2.5 + (rand() - 0.5) * 2.5);
+        const energyBefore = clampRating(2.8 + (rand() - 0.5) * 2.5);
+        const moodAfter = clampRating(moodBefore + 0.6 + (rand() - 0.5) * 1.5);
+        const energyAfter = clampRating(
+          energyBefore - 0.2 + (rand() - 0.5) * 1.8,
+        );
+        await db.sessions.update(sessionId, {
+          completedAt: new Date(finalTime).toISOString(),
+          moodBefore,
+          energyBefore,
+          moodAfter,
+          energyAfter,
+        });
+      } else {
+        await db.sessions.update(sessionId, {
+          completedAt: new Date(finalTime).toISOString(),
+        });
+      }
       sessionCount += 1;
     }
   }
 
   return sessionCount;
+}
+
+/** Round to nearest integer, clamp 1..5. */
+function clampRating(v: number): number {
+  return Math.min(5, Math.max(1, Math.round(v)));
 }
 
 /** Reference to the seed loader so the active routine can stay

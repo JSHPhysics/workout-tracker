@@ -36,9 +36,45 @@ export const EXERCISE_CATEGORIES = [
   'warmup',
   'activation',
   'cardio',
+  'stretching',
   'other',
 ] as const;
 export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number];
+
+export const EQUIPMENT_TAGS = [
+  'bodyweight',
+  'barbell',
+  'dumbbells',
+  'kettlebell',
+  'bench',
+  'pull-up-bar',
+  'cable-machine',
+  'resistance-bands',
+  'glute-bridge-pad',
+  'foam-roller',
+  'yoga-mat',
+  'medicine-ball',
+  'box',
+  'machine',
+] as const;
+export type EquipmentTag = (typeof EQUIPMENT_TAGS)[number];
+
+export const EQUIPMENT_LABELS: Record<EquipmentTag, string> = {
+  'bodyweight': 'Bodyweight',
+  'barbell': 'Barbell + plates',
+  'dumbbells': 'Dumbbells',
+  'kettlebell': 'Kettlebell',
+  'bench': 'Bench',
+  'pull-up-bar': 'Pull-up bar',
+  'cable-machine': 'Cable machine',
+  'resistance-bands': 'Resistance bands',
+  'glute-bridge-pad': 'Hip thrust pad',
+  'foam-roller': 'Foam roller',
+  'yoga-mat': 'Yoga mat',
+  'medicine-ball': 'Medicine ball',
+  'box': 'Plyo box / step',
+  'machine': 'Selectorised machine',
+};
 
 export const MEASUREMENT_TYPES = [
   'weight_reps',
@@ -46,6 +82,10 @@ export const MEASUREMENT_TYPES = [
   'time_seconds',
   'distance',
   'reps_each_side',
+  /** Walking — duration (in seconds, displayed as minutes) plus an
+   * optional step count. Doesn't contribute to weight×reps volume or
+   * PR detection; tracked separately for cardio aggregates. */
+  'walking',
 ] as const;
 export type MeasurementType = (typeof MEASUREMENT_TYPES)[number];
 
@@ -69,6 +109,12 @@ export interface Profile {
    * BodyweightLog entry as their per-rep load (so push-ups & co
    * actually count toward volume aggregates). */
   useBodyweightForVolume: boolean;
+  /** What's in the user's gym. Drives the exercise picker filter:
+   * exercises whose `requiredEquipment` aren't fully covered by
+   * this list are hidden by default. Empty list = "I have nothing,
+   * show me bodyweight only". `bodyweight` is implicit but we still
+   * persist it so the picker filter reads cleanly. */
+  equipment: EquipmentTag[];
   createdAt: string;
 }
 
@@ -104,6 +150,24 @@ export interface Exercise {
   defaultRestSeconds: number;
   perSide: boolean;
   usesBarbell: boolean;
+  /** Equipment that has to be available for this exercise. Empty
+   * implies bodyweight-only; an entry of `'bodyweight'` is fine but
+   * redundant. The picker filter requires every tag in this list to
+   * be present in the user's `Profile.equipment`. */
+  requiredEquipment: EquipmentTag[];
+  /** Numbered "how to" steps surfaced in the exercise detail sheet.
+   * Optional — exercises without instructions just show a friendly
+   * placeholder. */
+  instructions?: string[];
+  /** Slug into the static SVG diagram library (see
+   * `src/components/ExerciseDiagram.tsx`). When unset or unknown the
+   * detail sheet shows the brand placeholder. */
+  diagram?: string;
+  /** Optional external "watch a demo" URL. Currently used to deep-link
+   * into spotebi.com's exercise guide pages — they have animated
+   * demonstrations that are far better than our line-art placeholders.
+   * The detail sheet renders this as a "Watch demo ↗" link. */
+  demoUrl?: string;
   isCustom: boolean;
   /** null for seed/built-in library entries; profile id otherwise. */
   profileId: string | null;
@@ -191,6 +255,14 @@ export interface Session {
   completedAt: string | null;
   planName: string;
   notes?: string;
+  /** 1–5 ratings captured at session start (pre-workout prompt).
+   * Optional — the user can skip the prompt or fill in later from
+   * the read-only session view. */
+  moodBefore?: number;
+  energyBefore?: number;
+  /** 1–5 ratings captured on Finish (post-workout prompt). */
+  moodAfter?: number;
+  energyAfter?: number;
   /** Cached count of new PRs achieved this session. */
   prCount: number;
   /** Per-session plan. For templated sessions this starts as a snapshot
@@ -213,6 +285,9 @@ export interface SetLog {
   barWeight?: number;
   reps?: number;
   durationSeconds?: number;
+  /** Step count, currently used by walking-type exercises. Optional —
+   * a walk logged purely by duration leaves this unset. */
+  steps?: number;
   rpe?: number;
   notes?: string;
   side: 'left' | 'right' | null;

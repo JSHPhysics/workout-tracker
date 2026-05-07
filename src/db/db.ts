@@ -15,8 +15,22 @@ import type { Block } from '../types';
 // Pre-v2 sessions don't have `livePlan` yet — type for the upgrader.
 type V1Session = Omit<Session, 'livePlan'> & { livePlan?: Block[] };
 // Pre-v3 profiles lack the bodyweight toggle.
-type V2Profile = Omit<Profile, 'useBodyweightForVolume'> & {
+type V2Profile = Omit<Profile, 'useBodyweightForVolume' | 'equipment'> & {
   useBodyweightForVolume?: boolean;
+  equipment?: Profile['equipment'];
+};
+// Pre-v4 profiles lack the equipment list. Pre-v4 exercises lack the
+// requiredEquipment / instructions / diagram trio.
+type V3Profile = Omit<Profile, 'equipment'> & {
+  equipment?: Profile['equipment'];
+};
+type V3Exercise = Omit<
+  Exercise,
+  'requiredEquipment' | 'instructions' | 'diagram'
+> & {
+  requiredEquipment?: Exercise['requiredEquipment'];
+  instructions?: Exercise['instructions'];
+  diagram?: Exercise['diagram'];
 };
 
 // Single Dexie instance for the app. Each Dexie table is typed via
@@ -131,3 +145,76 @@ db.version(3)
       await profilesTable.update(p.id, { useBodyweightForVolume: false });
     }
   });
+
+// v4 — Profile.equipment + Exercise.{requiredEquipment,instructions,diagram}
+// added (post-12 expansion). Backfills:
+//   • Profiles default to a generous "everything I might own" list so
+//     the exercise picker filter doesn't spring on existing users with
+//     a wall of hidden lifts. They can trim it in Settings.
+//   • Exercises default to []  for requiredEquipment — the seed
+//     loader replaces seed rows on every boot with the enriched
+//     library, so this is just a safety net for any user-custom rows.
+const FULL_EQUIPMENT_DEFAULT: Profile['equipment'] = [
+  'bodyweight',
+  'barbell',
+  'dumbbells',
+  'kettlebell',
+  'bench',
+  'pull-up-bar',
+  'cable-machine',
+  'resistance-bands',
+  'glute-bridge-pad',
+  'foam-roller',
+  'yoga-mat',
+  'medicine-ball',
+  'box',
+  'machine',
+];
+db.version(4)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V3Profile[];
+    for (const p of profiles) {
+      if (Array.isArray(p.equipment)) continue;
+      await profilesTable.update(p.id, { equipment: FULL_EQUIPMENT_DEFAULT });
+    }
+    const exercisesTable = tx.table('exercises');
+    const exercises = (await exercisesTable.toArray()) as V3Exercise[];
+    for (const e of exercises) {
+      if (Array.isArray(e.requiredEquipment)) continue;
+      await exercisesTable.update(e.id, { requiredEquipment: [] });
+    }
+  });
+
+// v5 — Session.{moodBefore,energyBefore,moodAfter,energyAfter} added
+// (mood/energy logging feature). All four fields are optional plain
+// JSON columns — no index changes, no upgrader logic, no backfill.
+// Existing sessions continue to read as `undefined` for all four,
+// which the UI renders as "Not recorded" and (per the dispatch logic
+// in Session.tsx) suppresses the post-finish prompt's pre-fill.
+db.version(5).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+});

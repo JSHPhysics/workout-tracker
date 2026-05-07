@@ -337,9 +337,12 @@ function formatTarget(planned: PlannedExercise): string {
   if (planned.reps) {
     parts.push(`${planned.reps.min}–${planned.reps.max} reps`);
   } else if (planned.durationSeconds) {
-    parts.push(
-      `${planned.durationSeconds.min}–${planned.durationSeconds.max}s`,
-    );
+    const { min, max } = planned.durationSeconds;
+    if (min >= 300) {
+      parts.push(`${Math.round(min / 60)}–${Math.round(max / 60)} min`);
+    } else {
+      parts.push(`${min}–${max}s`);
+    }
   } else {
     parts.push('—');
   }

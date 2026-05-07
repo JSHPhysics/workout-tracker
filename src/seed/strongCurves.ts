@@ -4,8 +4,12 @@
 
 import type { Exercise, RoutineTemplate } from '../types';
 
+// Note: `requiredEquipment` / `instructions` / `diagram` are layered
+// on at seed-load time by `src/db/seed-loader.ts` from the enrichment
+// map. The generator omits them so it doesn't need to know about
+// equipment tagging.
 export const STRONG_CURVES_EXERCISES: ReadonlyArray<
-  Omit<Exercise, 'isCustom' | 'profileId'>
+  Omit<Exercise, 'isCustom' | 'profileId' | 'requiredEquipment' | 'instructions' | 'diagram'>
 > = [
   {
     id: "25-lb-back-extension-reverse-hype",

@@ -1,0 +1,53 @@
+barbell-back-squat	Barbell Back Squat	squat|squats|back-squats|barbell-squat|barbell-squats
+barbell-bench-press	Barbell Bench Press	barbell-bench-press|barbell-bench|chest-press|bench-press-barbell
+barbell-overhead-press	Barbell Overhead Press	barbell-overhead-press|overhead-shoulder-press|barbell-shoulder-press|standing-overhead-press|overhead-presses
+barbell-front-squat	Barbell Front Squat	barbell-front-squat|front-squats|front-squat-barbell
+barbell-close-grip-bench-press	Barbell Close Grip Bench Press	close-grip-bench-press|close-grip-press|narrow-grip-bench-press
+barbell-power-clean	Power Clean	power-cleans|cleans|barbell-clean|hang-clean
+pull-up	Pull-Up	pull-ups|pullup|pullups|wide-pull-up|wide-pull-ups
+chin-up	Chin-Up	chin-ups|chinup|chinups|narrow-chin-up
+goblet-squat	Goblet Squat	goblet-squats|dumbbell-goblet-squat|goblet
+dumbbell-incline-press	Dumbbell Incline Press	dumbbell-incline-press|incline-dumbbell-press|incline-bench-press|incline-chest-press|inclined-press
+dumbbell-military-press-standing	Dumbbell Military Press Standing	dumbbell-military-press|military-press|standing-military-press|standing-shoulder-press|dumbbell-shoulder-press
+dumbbell-row	One-Arm Dumbbell Row	one-arm-dumbbell-row|dumbbell-row|bent-over-dumbbell-row|single-arm-dumbbell-row
+one-arm-dumbbell-row	One Arm Dumbbell Row	one-arm-dumbbell-row|dumbbell-row|single-arm-dumbbell-row
+seated-row	Seated Row	seated-cable-row|seated-rows|cable-row|low-row
+front-lat-pulldowns	Front Lat Pulldowns	lat-pulldown|lat-pulldowns|pulldown|wide-grip-lat-pulldown
+single-leg-glute-bridge	Single-Leg Glute Bridge	single-leg-glute-bridges|one-leg-glute-bridge|single-leg-bridge|one-leg-bridge
+glute-march	Glute March	glute-marches|march-hip-bridge|hip-bridge-march|glute-bridge-march
+side-lying-abduction	Side Lying Abduction	side-lying-leg-raise|side-lying-leg-raises|lying-side-leg-raise|side-leg-raise|side-lying-hip-abduction
+side-lying-abductions	Side Lying Abductions	side-lying-leg-raise|side-lying-leg-raises|lying-side-leg-raise|side-leg-raise
+side-lying-clam	Side Lying Clam	clamshell|clams|side-lying-clamshell|clam-shells
+side-plank-on-feet	Side plank on feet	side-plank|side-planks|side-plank-feet
+straight-leg-sit-up	Straight Leg Sit Up	straight-leg-situp|straight-leg-sit-ups|sit-up|sit-ups
+swiss-ball-crunch	Swiss Ball Crunch	stability-ball-crunch|exercise-ball-crunch|ball-crunch|swiss-ball-crunches
+swiss-ball-side-crunch	Swiss Ball Side Crunch	stability-ball-side-crunch|exercise-ball-side-crunch|ball-side-crunch
+torso-elevated-push-up	Torso Elevated Push Up	incline-push-up|incline-pushup|elevated-push-up|incline-press-up
+towel-row	Towel Row	towel-rows|inverted-row-towel|home-row
+russian-kettlebell-swing	Russian Kettlebell Swing	kettlebell-swing|kettlebell-swings|russian-swing|two-handed-kettlebell-swing
+foam-roll-quads	Foam Roll Quads	foam-roller-quads|foam-rolling-quads|quad-foam-roll|foam-roll-quadriceps
+foam-roll-lats	Foam Roll Lats	foam-roller-lats|foam-rolling-lats|lat-foam-roll
+knee-pushups	Knee Pushups	knee-push-up|knee-push-ups|kneeling-push-up|kneeling-pushup|modified-push-up
+bodyweight-hip-thrust	Bodyweight Hip Thrust	hip-thrust|hip-thrusts|bodyweight-hip-thrusts|glute-thrust|barbell-hip-thrust
+band-anti-rotation-hold	Band Anti Rotation Hold	pallof-press|pallof-hold|anti-rotation-press|cable-pallof-press
+rkc-plank	RKC Plank	rkc-planks|hardstyle-plank|tense-plank
+elevated-foot-rkc-plank	Elevated Foot RKC Plank	elevated-plank|feet-elevated-plank|elevated-foot-plank
+modified-inverted-row-bar-t-bar-row	Modified Inverted Row T Bar Row	inverted-row|t-bar-row|inverted-rows|tbar-row|bodyweight-row
+negative-chin-up-underhand-grip-pull-down	Negative Chin Up Underhand Grip Pull Down	negative-chin-up|negative-pull-up|underhand-pulldown|reverse-grip-pulldown
+body-weight-negative-pushup	Body Weight Negative Pushup	negative-push-up|negative-pushup|eccentric-push-up
+standing-single-arm-cable-row	Standing Single Arm Cable Row	standing-cable-row|single-arm-cable-row|standing-one-arm-cable-row|cable-row-standing
+rope-horizontal-chop	Rope Horizontal Chop	cable-horizontal-chop|cable-chop|wood-chop|cable-wood-chop|horizontal-cable-chop
+x-band-walk-or-cable-hip-abductions	X-Band Walk	x-band-walk|lateral-band-walk|side-band-walk|hip-abduction-cable
+stretch-90-90	90/90 Hip Switch	90-90-stretch|90-90-hip-stretch|90-90|hip-90-90
+stretch-cat-cow	Cat Cow	cat-cow-stretch|cat-cow-pose|cat-pose|cow-pose|cat-stretch
+stretch-cobra	Cobra Stretch	cobra-pose|cobra-yoga-pose|low-cobra|sphinx-pose
+stretch-figure-four	Figure-4 Glute Stretch	figure-four-stretch|figure-4-stretch|figure-four-glute|figure-four
+stretch-lying-cross	Lying Cross Stretch	supine-spinal-twist|supine-twist|lying-spinal-twist|spine-stretch|lower-back-stretch
+stretch-one-leg-pike	One-Leg Pike	single-leg-pike|one-leg-pike-stretch|seated-pike-stretch|pike-stretch
+stretch-pancake	Pancake Stretch	pancake|straddle-stretch|straddle-fold|seated-straddle
+stretch-rear-hand-clasp	Rear Hand Clasp	behind-the-back-shoulder-stretch|reverse-prayer|behind-back-stretch|cow-face-arms
+stretch-shoulder-backbend	Shoulder Backbend	bridge-pose|reverse-tabletop|tabletop-stretch|crab-stretch
+stretch-standing-backbend	Standing Backbend	backbend|standing-back-stretch|standing-back-bend
+stretch-tspine-rotation	T-Spine Rotation	thoracic-spine-rotation|thoracic-rotation|t-spine-stretch|world-greatest-stretch
+stretch-wrist-biceps	Wrist Biceps Stretch	wrist-stretch|biceps-stretch|forearm-stretch|wrist-flexor-stretch
+side-lying-clam-2	Side Lying Clam alt	clamshell-exercise|clamshell-glute|side-lying-clamshell-exercise

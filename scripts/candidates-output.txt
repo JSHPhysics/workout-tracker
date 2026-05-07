@@ -1,0 +1,53 @@
+barbell-back-squat	Barbell Back Squat	https://spotebi.com/exercise-guide/squat/
+barbell-bench-press	Barbell Bench Press	https://spotebi.com/exercise-guide/chest-press/
+barbell-overhead-press	Barbell Overhead Press	
+barbell-front-squat	Barbell Front Squat	
+barbell-close-grip-bench-press	Barbell Close Grip Bench Press	
+barbell-power-clean	Power Clean	
+pull-up	Pull-Up	
+chin-up	Chin-Up	
+goblet-squat	Goblet Squat	
+dumbbell-incline-press	Dumbbell Incline Press	
+dumbbell-military-press-standing	Dumbbell Military Press Standing	https://spotebi.com/exercise-guide/dumbbell-shoulder-press/
+dumbbell-row	One-Arm Dumbbell Row	
+one-arm-dumbbell-row	One Arm Dumbbell Row	
+seated-row	Seated Row	
+front-lat-pulldowns	Front Lat Pulldowns	
+single-leg-glute-bridge	Single-Leg Glute Bridge	https://spotebi.com/exercise-guide/single-leg-bridge/
+glute-march	Glute March	
+side-lying-abduction	Side Lying Abduction	https://spotebi.com/exercise-guide/side-lying-hip-abduction/
+side-lying-abductions	Side Lying Abductions	
+side-lying-clam	Side Lying Clam	https://spotebi.com/exercise-guide/clamshell/
+side-plank-on-feet	Side plank on feet	https://spotebi.com/exercise-guide/side-plank/
+straight-leg-sit-up	Straight Leg Sit Up	https://spotebi.com/exercise-guide/sit-up/
+swiss-ball-crunch	Swiss Ball Crunch	
+swiss-ball-side-crunch	Swiss Ball Side Crunch	
+torso-elevated-push-up	Torso Elevated Push Up	
+towel-row	Towel Row	
+russian-kettlebell-swing	Russian Kettlebell Swing	
+foam-roll-quads	Foam Roll Quads	
+foam-roll-lats	Foam Roll Lats	
+knee-pushups	Knee Pushups	https://spotebi.com/exercise-guide/knee-push-up/
+bodyweight-hip-thrust	Bodyweight Hip Thrust	
+band-anti-rotation-hold	Band Anti Rotation Hold	
+rkc-plank	RKC Plank	
+elevated-foot-rkc-plank	Elevated Foot RKC Plank	
+modified-inverted-row-bar-t-bar-row	Modified Inverted Row T Bar Row	
+negative-chin-up-underhand-grip-pull-down	Negative Chin Up Underhand Grip Pull Down	
+body-weight-negative-pushup	Body Weight Negative Pushup	
+standing-single-arm-cable-row	Standing Single Arm Cable Row	
+rope-horizontal-chop	Rope Horizontal Chop	https://spotebi.com/exercise-guide/wood-chop/
+x-band-walk-or-cable-hip-abductions	X-Band Walk	https://spotebi.com/exercise-guide/lateral-band-walk/
+stretch-90-90	90/90 Hip Switch	
+stretch-cat-cow	Cat Cow	https://spotebi.com/exercise-guide/cat-pose/
+stretch-cobra	Cobra Stretch	https://spotebi.com/exercise-guide/cobra-pose/
+stretch-figure-four	Figure-4 Glute Stretch	
+stretch-lying-cross	Lying Cross Stretch	https://spotebi.com/exercise-guide/supine-spinal-twist/
+stretch-one-leg-pike	One-Leg Pike	
+stretch-pancake	Pancake Stretch	
+stretch-rear-hand-clasp	Rear Hand Clasp	
+stretch-shoulder-backbend	Shoulder Backbend	https://spotebi.com/exercise-guide/bridge-pose/
+stretch-standing-backbend	Standing Backbend	
+stretch-tspine-rotation	T-Spine Rotation	
+stretch-wrist-biceps	Wrist Biceps Stretch	https://spotebi.com/exercise-guide/wrist-stretch/
+side-lying-clam-2	Side Lying Clam alt	
