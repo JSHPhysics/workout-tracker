@@ -50,6 +50,10 @@ type V7Profile = Omit<Profile, 'theme'> & {
   accent?: string;
   theme?: Profile['theme'];
 };
+// Pre-v9 profiles lack the keep-screen-on toggle.
+type V8Profile = Omit<Profile, 'keepScreenOn'> & {
+  keepScreenOn?: Profile['keepScreenOn'];
+};
 
 // Single Dexie instance for the app. Each Dexie table is typed via
 // `EntityTable<T, primaryKey>`; the second generic argument is the name
@@ -346,5 +350,33 @@ db.version(8)
       // is simpler than fighting Dexie's update typing, and nothing
       // reads it any more.
       await profilesTable.update(p.id, { theme } as Partial<Profile>);
+    }
+  });
+
+// v9 — Profile.keepScreenOn added (Wake Lock toggle). Plain boolean
+// column, no index changes. Defaults to `false` on existing profiles
+// — matches the previous behaviour (no wake lock at all) so opting
+// in is an explicit user action.
+db.version(9)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+    periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V8Profile[];
+    for (const p of profiles) {
+      if (typeof p.keepScreenOn === 'boolean') continue;
+      await profilesTable.update(p.id, { keepScreenOn: false });
     }
   });

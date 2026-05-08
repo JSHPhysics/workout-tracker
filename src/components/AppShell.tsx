@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useProfile } from '../db/profiles';
+import { useWakeLock } from '../lib/wakeLock';
 import { BackupNagBanner } from './BackupNag';
 import { TabBar } from './TabBar';
 import { ThemeToggle } from './ThemeToggle';
@@ -10,6 +11,12 @@ export function AppShell() {
   const activeProfileId = useActiveProfile((s) => s.activeProfileId);
   const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
   const profile = useProfile(activeProfileId);
+
+  // Keep the screen on for the entire AppShell lifetime when the
+  // profile has the toggle enabled. The Rest Timer / Timers screen
+  // also call useWakeLock — the lock is ref-counted so they coexist
+  // without one releasing it from under the other.
+  useWakeLock(profile?.keepScreenOn ?? false);
 
   if (!activeProfileId) {
     return <Navigate to="/" replace />;

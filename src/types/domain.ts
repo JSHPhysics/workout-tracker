@@ -171,6 +171,12 @@ export interface Profile {
    * Today-screen day/phase chip, the Mood & Energy chart phase bands,
    * and per-PR-row phase chips. Per-profile and opt-in by default. */
   periodTrackingEnabled: boolean;
+  /** When true, the app holds a Screen Wake Lock for as long as it's
+   * the foregrounded tab — the device won't dim or sleep mid-workout.
+   * Auto-released by the browser when the tab backgrounds; we
+   * re-acquire on visibilitychange. Per-profile so a household device
+   * can have different preferences. */
+  keepScreenOn: boolean;
   /** What's in the user's gym. Drives the exercise picker filter:
    * exercises whose `requiredEquipment` aren't fully covered by
    * this list are hidden by default. Empty list = "I have nothing,

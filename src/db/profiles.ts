@@ -55,6 +55,16 @@ export async function setPeriodTrackingEnabled(
   await db.profiles.update(profileId, { periodTrackingEnabled: enabled });
 }
 
+/** Per-profile screen-wake-lock toggle. When `true`, the AppShell
+ * holds a Screen Wake Lock for as long as the app is foregrounded —
+ * the device won't dim or sleep mid-workout. Off by default. */
+export async function setKeepScreenOn(
+  profileId: string,
+  enabled: boolean,
+): Promise<void> {
+  await db.profiles.update(profileId, { keepScreenOn: enabled });
+}
+
 /** Change the active palette for the profile. The data-theme
  * attribute on `<html>` is reactive (see ActiveProfileTheme), so the
  * UI re-paints as soon as Dexie's live query fires. */
@@ -130,6 +140,7 @@ export async function createProfile(input: CreateProfileInput): Promise<string> 
     unitSystem: 'kg',
     useBodyweightForVolume: false,
     periodTrackingEnabled: input.sex === 'female',
+    keepScreenOn: false,
     equipment: [...NEW_PROFILE_EQUIPMENT],
     warmupPercentages: [30, 45, 60],
     createdAt: new Date().toISOString(),

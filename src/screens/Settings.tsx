@@ -12,6 +12,7 @@ import {
 } from '../db/equipment';
 import {
   deleteProfile,
+  setKeepScreenOn,
   setPeriodTrackingEnabled,
   setProfileEquipment,
   setProfileTheme,
@@ -132,6 +133,25 @@ function Preferences() {
           onChange={(next) => void setProfileTheme(profileId, next)}
           ariaLabel="Profile theme"
         />
+      </article>
+      <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <label className="flex items-start justify-between gap-4">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-fg">
+              Keep screen on
+            </span>
+            <span className="text-xs text-fg-muted">
+              Holds a screen wake lock so the device won't dim or
+              sleep while the app is open. Releases automatically
+              when you background the app.
+            </span>
+          </span>
+          <Toggle
+            checked={profile.keepScreenOn}
+            onChange={(next) => void setKeepScreenOn(profileId, next)}
+            ariaLabel="Keep screen on while the app is open"
+          />
+        </label>
       </article>
       <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
         <label className="flex items-start justify-between gap-4">
