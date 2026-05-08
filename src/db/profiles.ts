@@ -150,6 +150,60 @@ export async function createProfile(input: CreateProfileInput): Promise<string> 
   return id;
 }
 
+/** Permanently delete a profile and every row scoped to it. Caller is
+ * expected to have already prompted for backup confirmation per
+ * CLAUDE.md ("Never delete a profile without an explicit JSON backup
+ * confirmation step").
+ *
+ * Deletion order matters: setLogs are scoped via session ids, so we
+ * collect those first, then delete in dependency order so a partial
+ * failure can't leave orphan rows. All in one transaction across every
+ * profile-touching table. */
+export async function deleteProfile(profileId: string): Promise<void> {
+  await db.transaction(
+    'rw',
+    [
+      db.profiles,
+      db.sessions,
+      db.setLogs,
+      db.prRecords,
+      db.barbells,
+      db.plateInventory,
+      db.bodyweightLogs,
+      db.periodLogs,
+      db.exercises,
+      db.routineTemplates,
+    ],
+    async () => {
+      // setLogs join via sessions.profileId — collect ids first.
+      const sessionIds = (
+        await db.sessions.where({ profileId }).toArray()
+      ).map((s) => s.id);
+      if (sessionIds.length > 0) {
+        await db.setLogs.where('sessionId').anyOf(sessionIds).delete();
+      }
+      await db.sessions.where({ profileId }).delete();
+      await db.prRecords.where({ profileId }).delete();
+      await db.barbells.where({ profileId }).delete();
+      await db.plateInventory.where({ profileId }).delete();
+      await db.bodyweightLogs.where({ profileId }).delete();
+      await db.periodLogs.where({ profileId }).delete();
+      // Custom exercises and routines authored by this profile. Seed
+      // entries (`isCustom: false` / `isSeed: true`) carry profileId
+      // === null and stay put.
+      await db.exercises
+        .where({ profileId })
+        .filter((e) => e.isCustom)
+        .delete();
+      await db.routineTemplates
+        .where({ profileId })
+        .filter((r) => !r.isSeed)
+        .delete();
+      await db.profiles.delete(profileId);
+    },
+  );
+}
+
 /** Convert a name to a URL-/CSS-safe id. We slug for readability —
  * "Sarah O'Connor" → "sarah-oconnor" — and append `-2` / `-3` / …
  * if a profile with that slug already exists. Empty / all-symbols

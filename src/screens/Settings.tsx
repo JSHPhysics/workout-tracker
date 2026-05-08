@@ -11,12 +11,16 @@ import {
   usePlateInventory,
 } from '../db/equipment';
 import {
+  deleteProfile,
   setPeriodTrackingEnabled,
   setProfileEquipment,
   setUseBodyweightForVolume,
   setWarmupPercentages,
   useProfile,
 } from '../db/profiles';
+import { useNavigate } from 'react-router-dom';
+import { backupFilename, buildBackup, markBackedUp } from '../db/backup';
+import { saveBackup } from '../lib/backupIo';
 import {
   EQUIPMENT_LABELS,
   EQUIPMENT_TAGS,
@@ -51,6 +55,7 @@ export function Settings() {
       <Preferences />
       <BackupHost />
       <Equipment />
+      <DangerZone />
       {import.meta.env.DEV && <DeveloperTools />}
     </section>
   );
@@ -384,6 +389,225 @@ function Toggle({
         ].join(' ')}
       />
     </button>
+  );
+}
+
+/** Settings → Danger zone. Hosts the destructive "Delete profile"
+ * action with a backup-confirmation gate per CLAUDE.md. The active
+ * profile deletes itself; after deletion the active-profile id is
+ * cleared and the user is routed to `/`, where the picker auto-routes
+ * to /profiles/new if it was the last profile. */
+function DangerZone() {
+  const profileId = useActiveProfile((s) => s.activeProfileId);
+  const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
+  const profile = useProfile(profileId);
+  const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  if (!profile) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <header>
+        <h2 className="font-display text-xl font-medium tracking-tight">
+          Danger zone
+        </h2>
+      </header>
+      <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <header className="flex flex-col gap-1">
+          <h3 className="font-display text-base font-medium">Delete profile</h3>
+          <p className="text-xs text-fg-muted">
+            Permanently removes <span className="text-fg">{profile.name}</span>{' '}
+            and every set log, PR, bodyweight log, period log, custom
+            exercise, and custom routine attached to it. Cannot be undone —
+            export a backup first.
+          </p>
+        </header>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            className="rounded-full border border-line bg-surface-soft px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-fg-muted hover:text-fg"
+          >
+            Delete profile…
+          </button>
+        </div>
+      </article>
+      {confirmOpen && (
+        <DeleteProfileModal
+          profile={profile}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirmed={async () => {
+            await deleteProfile(profile.id);
+            setActiveProfileId(null);
+            navigate('/', { replace: true });
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+interface DeleteProfileModalProps {
+  profile: Profile;
+  onCancel: () => void;
+  onConfirmed: () => Promise<void>;
+}
+
+/** Two-step confirmation: the user can optionally export a backup
+ * (the same flow Settings → Backup uses), then has to type the
+ * profile name to enable the destructive action. Standard "type to
+ * confirm" pattern — the friction is the point. */
+function DeleteProfileModal({
+  profile,
+  onCancel,
+  onConfirmed,
+}: DeleteProfileModalProps) {
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState<'export' | 'delete' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // Esc → cancel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  const exportBackup = async () => {
+    if (busy) return;
+    setBusy('export');
+    setMessage(null);
+    try {
+      const envelope = await buildBackup({ profileId: profile.id });
+      const filename = backupFilename(envelope, profile.name);
+      const result = await saveBackup(envelope, filename);
+      await markBackedUp(envelope.exportedAt, profile.id);
+      setMessage(
+        result.via === 'fs-access'
+          ? `Saved to ${result.filename}.`
+          : `Downloaded ${result.filename}.`,
+      );
+    } catch (err) {
+      setMessage(`Export failed: ${(err as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirm = async () => {
+    if (busy) return;
+    setBusy('delete');
+    try {
+      await onConfirmed();
+    } catch (err) {
+      setMessage(`Delete failed: ${(err as Error).message}`);
+      setBusy(null);
+    }
+    // On success the parent navigates away — no need to clear busy.
+  };
+
+  // Case-insensitive, trim — typo-tolerant without being so loose
+  // that a misclick could trip it.
+  const canDelete =
+    typed.trim().toLowerCase() === profile.name.trim().toLowerCase();
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Delete profile ${profile.name}`}
+      className="fixed inset-0 z-40 flex items-end justify-center bg-bg/80 px-5 py-10 backdrop-blur sm:items-center"
+      onClick={onCancel}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col gap-5 rounded-3xl border border-line bg-surface p-5 shadow-lift"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex flex-col gap-1">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
+            Delete profile
+          </span>
+          <h2 className="font-display text-2xl font-light leading-tight">
+            {profile.name}
+          </h2>
+          <p className="text-sm text-fg-muted">
+            This will permanently remove every workout, set, PR,
+            bodyweight log, period log, custom exercise, and custom
+            routine attached to <span className="text-fg">{profile.name}</span>.
+            There&apos;s no undo.
+          </p>
+        </header>
+
+        <section className="flex flex-col gap-2 rounded-2xl border border-line bg-surface-soft p-3">
+          <span className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
+            Step 1 — back up first
+          </span>
+          <p className="text-xs text-fg-muted">
+            Export a JSON backup so you can restore later if you change
+            your mind. Optional but strongly recommended.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={exportBackup}
+              disabled={busy !== null}
+              className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:text-fg disabled:opacity-50"
+            >
+              {busy === 'export' ? 'Exporting…' : 'Download backup'}
+            </button>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <label
+            htmlFor="confirm-profile-name"
+            className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-fg-muted"
+          >
+            Step 2 — type{' '}
+            <span className="text-fg">&ldquo;{profile.name}&rdquo;</span>{' '}
+            to confirm
+          </label>
+          <input
+            id="confirm-profile-name"
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={profile.name}
+            autoComplete="off"
+            spellCheck={false}
+            className="rounded-xl border border-line bg-surface px-3 py-2 text-base text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
+          />
+        </section>
+
+        {message && (
+          <p className="text-xs text-fg-muted" role="status">
+            {message}
+          </p>
+        )}
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy === 'delete'}
+            className="rounded-full px-4 py-2 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:text-fg disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={!canDelete || busy !== null}
+            className="rounded-full bg-accent px-5 py-2 text-xs font-medium text-accent-fg shadow-soft transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy === 'delete' ? 'Deleting…' : 'Delete forever'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
