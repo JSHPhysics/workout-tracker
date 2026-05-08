@@ -55,6 +55,16 @@ export async function setPeriodTrackingEnabled(
   await db.profiles.update(profileId, { periodTrackingEnabled: enabled });
 }
 
+/** Change the active palette for the profile. The data-theme
+ * attribute on `<html>` is reactive (see ActiveProfileTheme), so the
+ * UI re-paints as soon as Dexie's live query fires. */
+export async function setProfileTheme(
+  profileId: string,
+  theme: Theme,
+): Promise<void> {
+  await db.profiles.update(profileId, { theme });
+}
+
 /** Replace the warm-up generator percentages for the profile. The
  * generator pre-logs one warm-up set per entry, in the given order, at
  * `target * pct / 100` (snapped to 2.5 kg). We store the raw integer

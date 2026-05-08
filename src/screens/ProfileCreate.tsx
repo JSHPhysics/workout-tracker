@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createProfile, useProfiles } from '../db/profiles';
 import { useActiveProfile } from '../state/activeProfile';
+import { ThemePicker } from '../components/ThemePicker';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { THEMES, THEME_LABELS, THEME_SWATCHES } from '../types';
 import type { Sex, Theme } from '../types';
 
 const SEX_OPTIONS: { value: Sex; label: string; sub: string }[] = [
@@ -118,34 +118,7 @@ export function ProfileCreate() {
           <span className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
             Theme
           </span>
-          <div className="grid grid-cols-3 gap-2">
-            {THEMES.map((t) => {
-              const active = t === theme;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTheme(t)}
-                  aria-pressed={active}
-                  className={[
-                    'flex flex-col items-center gap-1.5 rounded-2xl border bg-surface px-2 py-3 text-xs transition',
-                    active
-                      ? 'border-accent shadow-soft'
-                      : 'border-line text-fg-muted hover:border-line-strong hover:text-fg',
-                  ].join(' ')}
-                >
-                  <span
-                    aria-hidden
-                    className="h-6 w-6 rounded-full"
-                    style={{ background: THEME_SWATCHES[t] }}
-                  />
-                  <span className={active ? 'text-fg' : ''}>
-                    {THEME_LABELS[t]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <ThemePicker value={theme} onChange={setTheme} />
         </section>
 
         <section className="flex flex-col gap-3">

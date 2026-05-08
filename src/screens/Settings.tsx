@@ -14,6 +14,7 @@ import {
   deleteProfile,
   setPeriodTrackingEnabled,
   setProfileEquipment,
+  setProfileTheme,
   setUseBodyweightForVolume,
   setWarmupPercentages,
   useProfile,
@@ -35,6 +36,7 @@ import { BackupPromptModal } from '../components/BackupPromptModal';
 import { useInstallPrompt } from '../lib/installPrompt';
 import { NumberStepper } from '../components/NumberStepper';
 import { PlateViz } from '../components/PlateViz';
+import { ThemePicker } from '../components/ThemePicker';
 import type { Barbell, PlateInventoryEntry, Profile } from '../types';
 
 export function Settings() {
@@ -117,6 +119,20 @@ function Preferences() {
         </h2>
       </header>
       <InstallCard />
+      <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <header className="flex flex-col gap-1">
+          <h3 className="font-display text-base font-medium">Theme</h3>
+          <p className="text-xs text-fg-muted">
+            Pick a palette for {profile.name}. Each profile has its own;
+            switching profiles re-themes the app.
+          </p>
+        </header>
+        <ThemePicker
+          value={profile.theme}
+          onChange={(next) => void setProfileTheme(profileId, next)}
+          ariaLabel="Profile theme"
+        />
+      </article>
       <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
         <label className="flex items-start justify-between gap-4">
           <span className="flex flex-col gap-0.5">
