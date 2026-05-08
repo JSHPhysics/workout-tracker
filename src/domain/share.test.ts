@@ -1,0 +1,278 @@
+import { describe, expect, it } from 'vitest';
+import { formatWorkoutSummary } from './share';
+import type { Exercise, Session, SetLog } from '../types';
+
+// --- Test fixtures ----------------------------------------------------
+
+function bench(): Exercise {
+  return {
+    id: 'bench',
+    name: 'Bench Press',
+    category: 'push',
+    primaryMuscles: ['chest'],
+    secondaryMuscles: [],
+    measurementType: 'weight_reps',
+    defaultRestSeconds: 90,
+    perSide: false,
+    usesBarbell: true,
+    requiredEquipment: [],
+    isCustom: false,
+    profileId: null,
+  };
+}
+
+function pullup(): Exercise {
+  return {
+    id: 'pullup',
+    name: 'Pull-ups',
+    category: 'pull',
+    primaryMuscles: ['back'],
+    secondaryMuscles: [],
+    measurementType: 'bodyweight_reps',
+    defaultRestSeconds: 90,
+    perSide: false,
+    usesBarbell: false,
+    requiredEquipment: [],
+    isCustom: false,
+    profileId: null,
+  };
+}
+
+function plank(): Exercise {
+  return {
+    id: 'plank',
+    name: 'Plank',
+    category: 'core',
+    primaryMuscles: ['core'],
+    secondaryMuscles: [],
+    measurementType: 'time_seconds',
+    defaultRestSeconds: 60,
+    perSide: false,
+    usesBarbell: false,
+    requiredEquipment: [],
+    isCustom: false,
+    profileId: null,
+  };
+}
+
+function session(overrides: Partial<Session> = {}): Session {
+  return {
+    id: 'sess-1',
+    profileId: 'p1',
+    startedAt: '2026-05-08T08:00:00.000Z',
+    completedAt: '2026-05-08T08:45:00.000Z',
+    planName: 'Push Day A',
+    prCount: 0,
+    livePlan: [],
+    ...overrides,
+  };
+}
+
+function set(overrides: Partial<SetLog>): SetLog {
+  return {
+    id: crypto.randomUUID(),
+    sessionId: 'sess-1',
+    exerciseId: 'bench',
+    blockOrder: 0,
+    exerciseOrder: 0,
+    setNumber: 1,
+    setType: 'working',
+    side: null,
+    prTypes: [],
+    completedAt: '2026-05-08T08:10:00.000Z',
+    ...overrides,
+  };
+}
+
+// --- Tests ------------------------------------------------------------
+
+describe('formatWorkoutSummary', () => {
+  it('formats a basic weight_reps session', () => {
+    const out = formatWorkoutSummary({
+      session: session({ prCount: 1 }),
+      setLogs: [
+        set({ setNumber: 1, weight: 60, reps: 8 }),
+        set({ setNumber: 2, weight: 65, reps: 6, prTypes: ['weight'] }),
+        set({ setNumber: 3, weight: 65, reps: 5 }),
+      ],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).toContain('Push Day A · 8 May 2026');
+    expect(out).toContain('45 min');
+    expect(out).toContain('1,195 kg volume'); // 60×8 + 65×6 + 65×5
+    expect(out).toContain('1 PR ✨');
+    expect(out).toContain('Bench Press: 60kg × 8, 65kg × 6 ✨, 65kg × 5');
+  });
+
+  it('skips warm-up sets entirely from the exercise summary', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        set({ setNumber: 1, setType: 'warmup', weight: 30, reps: 8 }),
+        set({ setNumber: 2, setType: 'warmup', weight: 40, reps: 8 }),
+        set({ setNumber: 3, weight: 60, reps: 8 }),
+      ],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).toContain('Bench Press: 60kg × 8');
+    expect(out).not.toContain('30kg');
+    expect(out).not.toContain('40kg');
+    // Volume should also exclude warmups.
+    expect(out).toContain('480 kg volume');
+  });
+
+  it('omits exercises that have no working sets logged', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        // Only warmups for bench — should be omitted entirely.
+        set({ setNumber: 1, setType: 'warmup', weight: 30, reps: 8 }),
+      ],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).not.toContain('Bench Press');
+  });
+
+  it('formats bodyweight_reps without a weight number', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        set({
+          exerciseId: 'pullup',
+          setNumber: 1,
+          reps: 8,
+        }),
+        set({
+          exerciseId: 'pullup',
+          setNumber: 2,
+          reps: 7,
+        }),
+      ],
+      exercises: new Map([['pullup', pullup()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).toContain('Pull-ups: × 8, × 7');
+  });
+
+  it('formats time_seconds in mins+secs', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        set({
+          exerciseId: 'plank',
+          setNumber: 1,
+          durationSeconds: 60,
+        }),
+        set({
+          exerciseId: 'plank',
+          setNumber: 2,
+          durationSeconds: 90,
+        }),
+      ],
+      exercises: new Map([['plank', plank()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).toContain('Plank: 60s, 90s');
+  });
+
+  it('groups sets by block + exercise position regardless of completion order', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        // Logged second exercise first (e.g. user jumped around).
+        set({
+          blockOrder: 1,
+          exerciseOrder: 0,
+          exerciseId: 'pullup',
+          reps: 8,
+          setNumber: 1,
+        }),
+        set({
+          blockOrder: 0,
+          exerciseOrder: 0,
+          exerciseId: 'bench',
+          weight: 60,
+          reps: 8,
+          setNumber: 1,
+        }),
+      ],
+      exercises: new Map([
+        ['bench', bench()],
+        ['pullup', pullup()],
+      ]),
+      unitSystem: 'kg',
+    });
+    const benchIdx = out.indexOf('Bench Press');
+    const pullupIdx = out.indexOf('Pull-ups');
+    expect(benchIdx).toBeGreaterThan(-1);
+    expect(pullupIdx).toBeGreaterThan(-1);
+    expect(benchIdx).toBeLessThan(pullupIdx);
+  });
+
+  it('uses lb when the profile is on imperial', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [set({ weight: 135, reps: 5 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'lb',
+    });
+    expect(out).toContain('135lb × 5');
+    expect(out).toContain('675 lb volume');
+  });
+
+  it('formats > 60min duration as h+m', () => {
+    const out = formatWorkoutSummary({
+      session: session({
+        startedAt: '2026-05-08T08:00:00.000Z',
+        completedAt: '2026-05-08T09:35:00.000Z',
+      }),
+      setLogs: [set({ weight: 60, reps: 8 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    expect(out).toContain('1h 35m');
+  });
+
+  it('omits stats line when nothing useful to say', () => {
+    const out = formatWorkoutSummary({
+      session: session({ completedAt: null, prCount: 0 }),
+      setLogs: [],
+      exercises: new Map(),
+      unitSystem: 'kg',
+    });
+    // Header only — no second line.
+    expect(out.split('\n').length).toBeLessThanOrEqual(2);
+  });
+
+  it('appends footer when appUrl is provided', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [set({ weight: 60, reps: 8 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+      appUrl: 'https://example.com/workouts',
+    });
+    expect(out).toContain('Workout Tracker · https://example.com/workouts');
+  });
+
+  it('uses singular "PR" for one PR and plural "PRs" for many', () => {
+    const single = formatWorkoutSummary({
+      session: session({ prCount: 1 }),
+      setLogs: [set({ weight: 60, reps: 8, prTypes: ['weight'] })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    const multi = formatWorkoutSummary({
+      session: session({ prCount: 3 }),
+      setLogs: [set({ weight: 60, reps: 8, prTypes: ['weight'] })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+    });
+    expect(single).toContain('1 PR ✨');
+    expect(single).not.toContain('1 PRs');
+    expect(multi).toContain('3 PRs ✨');
+  });
+});

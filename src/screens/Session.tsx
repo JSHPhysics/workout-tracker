@@ -25,6 +25,7 @@ import { BackupPromptModal } from '../components/BackupPromptModal';
 import { staleness } from '../components/BackupSection';
 import { RestTimerBar } from '../components/RestTimerBar';
 import { SetRow } from '../components/SetRow';
+import { ShareWorkoutButton } from '../components/ShareWorkoutButton';
 import { WarmupGeneratorModal } from '../components/WarmupGeneratorModal';
 import { WellbeingPromptModal } from '../components/WellbeingPromptModal';
 import {
@@ -292,6 +293,17 @@ export function Session() {
           sets logged
         </p>
       </header>
+
+      {sessionDone && (
+        <div className="flex justify-end">
+          <ShareWorkoutButton
+            session={session}
+            setLogs={setLogs}
+            exercises={exerciseMap}
+            unitSystem={profile?.unitSystem ?? 'kg'}
+          />
+        </div>
+      )}
 
       {sessionDone && (
         <WellbeingCard
