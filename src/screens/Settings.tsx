@@ -120,6 +120,7 @@ function Preferences() {
         </h2>
       </header>
       <InstallCard />
+      <SwitchProfileCard profile={profile} />
       <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
         <header className="flex flex-col gap-1">
           <h3 className="font-display text-base font-medium">Theme</h3>
@@ -195,6 +196,40 @@ function Preferences() {
       <WarmupPercentagesCard profile={profile} />
       <EquipmentPicker profile={profile} />
     </section>
+  );
+}
+
+/** Discoverable "Switch profile" affordance. The header pill on every
+ * authenticated screen does the same thing, but burying it there
+ * isn't great for first-time users — surface it explicitly here too.
+ *
+ * Navigates to `/` with a `switch: true` location-state flag so the
+ * picker shows the list rather than auto-resuming to /today. The
+ * stored active-profile id is left intact — picking the same one
+ * again is a no-op, picking a different one updates the persisted
+ * value. */
+function SwitchProfileCard({ profile }: { profile: Profile }) {
+  const navigate = useNavigate();
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h3 className="font-display text-base font-medium">Switch profile</h3>
+        <p className="text-xs text-fg-muted">
+          Currently lifting as{' '}
+          <span className="text-fg">{profile.name}</span>. Tap to pick
+          a different profile or add another.
+        </p>
+      </header>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => navigate('/', { state: { switch: true } })}
+          className="rounded-full border border-line bg-surface-soft px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent/40 hover:text-accent"
+        >
+          Switch profile
+        </button>
+      </div>
+    </article>
   );
 }
 

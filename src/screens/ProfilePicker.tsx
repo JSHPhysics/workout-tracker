@@ -1,14 +1,29 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useProfiles } from '../db/profiles';
 import { useActiveProfile } from '../state/activeProfile';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { THEME_SWATCHES } from '../types';
 
+/** Type guard for the `switch: true` location-state flag the app uses
+ * to ask the picker to *show* rather than auto-redirect (header pill
+ * + Settings → Switch profile). */
+function isSwitchState(value: unknown): value is { switch: true } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'switch' in value &&
+    (value as { switch: unknown }).switch === true
+  );
+}
+
 export function ProfilePicker() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeProfileId = useActiveProfile((s) => s.activeProfileId);
   const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
   const profiles = useProfiles();
+  const wantsSwitch = isSwitchState(location.state);
 
   // First-launch redirect: as soon as Dexie confirms there are zero
   // profiles, route to the creation form. Loading (`undefined`) is
@@ -19,6 +34,23 @@ export function ProfilePicker() {
       navigate('/profiles/new', { replace: true });
     }
   }, [profiles, navigate]);
+
+  // Auto-resume to /today when there's already a stored active
+  // profile — most users open the app to do a workout, not to
+  // re-pick. Bypassed when the user came here via Switch profile.
+  // Stale stored ids (profile deleted) are cleared so the picker
+  // shows normally.
+  useEffect(() => {
+    if (!profiles || profiles.length === 0) return;
+    if (wantsSwitch) return;
+    if (!activeProfileId) return;
+    const exists = profiles.some((p) => p.id === activeProfileId);
+    if (exists) {
+      navigate('/today', { replace: true });
+    } else {
+      setActiveProfileId(null);
+    }
+  }, [profiles, activeProfileId, wantsSwitch, navigate, setActiveProfileId]);
 
   const choose = (id: string) => {
     setActiveProfileId(id);

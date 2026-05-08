@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useProfile } from '../db/profiles';
 import { useWakeLock } from '../lib/wakeLock';
@@ -11,6 +11,7 @@ export function AppShell() {
   const activeProfileId = useActiveProfile((s) => s.activeProfileId);
   const setActiveProfileId = useActiveProfile((s) => s.setActiveProfileId);
   const profile = useProfile(activeProfileId);
+  const navigate = useNavigate();
 
   // Keep the screen on for the entire AppShell lifetime when the
   // profile has the toggle enabled. The Rest Timer / Timers screen
@@ -39,7 +40,7 @@ export function AppShell() {
       >
         <button
           type="button"
-          onClick={() => setActiveProfileId(null)}
+          onClick={() => navigate('/', { state: { switch: true } })}
           className="-mx-2 flex min-h-[48px] items-center gap-2.5 rounded-xl px-2 transition hover:bg-surface-soft"
           aria-label={`Switch profile (current: ${profile.name})`}
         >
