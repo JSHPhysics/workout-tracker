@@ -244,6 +244,7 @@ export function SetRow({
           `After ${exercise.name} · Set ${setNumber}`,
         );
       }
+      scrollToNextSetAfter(blockOrder, exerciseOrder, setNumber);
     } finally {
       setBusy(false);
     }
@@ -343,6 +344,9 @@ export function SetRow({
 
   return (
     <div
+      // Stable key the auto-scroll-after-tick logic uses to find this
+      // row in the DOM and the row below it.
+      data-set-key={`${blockOrder}-${exerciseOrder}-${setNumber}`}
       className={[
         'flex flex-col gap-2 rounded-xl border px-3 py-2',
         blockSkipped
@@ -543,6 +547,45 @@ interface SetExtrasProps {
 }
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10] as const;
+
+/** After a successful tick, smoothly scroll the next SetRow into the
+ * middle of the viewport so the user doesn't have to thumb-scroll
+ * between sets. Picks the row immediately following the just-ticked
+ * one in document order — so when the last set of an exercise is
+ * ticked, the next exercise's first set comes into view. No-ops on
+ * the very last set of the session and when there's no DOM
+ * environment (SSR / tests). Honours `prefers-reduced-motion`. */
+function scrollToNextSetAfter(
+  blockOrder: number,
+  exerciseOrder: number,
+  setNumber: number,
+): void {
+  if (typeof document === 'undefined') return;
+  const currentKey = `${blockOrder}-${exerciseOrder}-${setNumber}`;
+  // Defer one frame so the parent's live-query update lands first —
+  // the just-ticked row is otherwise queryable but its layout may
+  // shift as the completed-state styling kicks in, and we want the
+  // scroll to settle on stable geometry.
+  requestAnimationFrame(() => {
+    const all = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-set-key]'),
+    );
+    const idx = all.findIndex(
+      (el) => el.getAttribute('data-set-key') === currentKey,
+    );
+    if (idx < 0 || idx + 1 >= all.length) return;
+    const next = all[idx + 1];
+    if (!next) return;
+    const reducedMotion =
+      typeof window !== 'undefined' && window.matchMedia
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
+    next.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+      block: 'center',
+    });
+  });
+}
 
 function SetExtras({
   rpe,
