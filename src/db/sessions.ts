@@ -353,6 +353,57 @@ export async function addWarmupSets(
   });
 }
 
+// --- Retrospective set-log timestamp repair --------------------------------
+
+/** Detect set logs whose `completedAt` is well after the parent
+ * session's `completedAt` and rebase them to the session's
+ * `startedAt + i*60s`. This recovers data corrupted by the
+ * pre-fix `logSet`, which always wrote `completedAt = new Date()`
+ * regardless of the parent session's startedAt — so retrospective
+ * ticks ended up timestamped to "today" instead of the workout's
+ * actual date, collapsing them into one chart bucket.
+ *
+ * Heuristic: a setLog whose completedAt is more than 1h after its
+ * session's completedAt was clearly logged after the session
+ * "finished", which only happens for retrospective sessions ticked
+ * with buggy code. Live sessions never produce this pattern (the
+ * Finish button stamps completedAt = now, after every tick).
+ *
+ * Idempotent — safe to call on every boot. Returns the number of
+ * rows it touched (for telemetry / console logging). */
+const REPAIR_LOOKAHEAD_MS = 60 * 60 * 1000;
+export async function repairRetrospectiveSetTimestamps(): Promise<number> {
+  let fixed = 0;
+  const allSessions = await db.sessions.toArray();
+  for (const session of allSessions) {
+    if (!session.completedAt) continue;
+    const sessionEndMs = Date.parse(session.completedAt);
+    const startedMs = Date.parse(session.startedAt);
+    const setLogs = await db.setLogs
+      .where({ sessionId: session.id })
+      .sortBy('setNumber');
+    // Find logs whose completedAt is far enough after session end
+    // that they couldn't have been part of the live workout.
+    const buggy = setLogs.filter(
+      (l) => Date.parse(l.completedAt) > sessionEndMs + REPAIR_LOOKAHEAD_MS,
+    );
+    if (buggy.length === 0) continue;
+    // Rebase every buggy log to startedAt + (its position+1) * 60s.
+    // We use position in the FULL setLogs list (not just the buggy
+    // subset) so ordering matches the user's intended set sequence.
+    for (let i = 0; i < setLogs.length; i++) {
+      const log = setLogs[i]!;
+      if (!buggy.includes(log)) continue;
+      const newCompletedAt = new Date(
+        startedMs + (i + 1) * 60 * 1000,
+      ).toISOString();
+      await db.setLogs.update(log.id, { completedAt: newCompletedAt });
+      fixed += 1;
+    }
+  }
+  return fixed;
+}
+
 // --- Completion count -----------------------------------------------------
 
 /** How many completed sessions on this profile share this session's
