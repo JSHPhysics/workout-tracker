@@ -10,6 +10,7 @@ export type {
   EquipmentTag,
   Exercise,
   ExerciseCategory,
+  ExerciseRestPref,
   MeasurementType,
   MuscleGroup,
   PRRecord,

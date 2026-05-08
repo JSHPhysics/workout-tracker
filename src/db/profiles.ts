@@ -65,6 +65,18 @@ export async function setKeepScreenOn(
   await db.profiles.update(profileId, { keepScreenOn: enabled });
 }
 
+/** Per-profile default rest time used when no per-exercise pref or
+ * routine override is set. Pass `null` to clear (falls back to the
+ * exercise's seed default). */
+export async function setProfileDefaultRestSeconds(
+  profileId: string,
+  seconds: number | null,
+): Promise<void> {
+  await db.profiles.update(profileId, {
+    defaultRestSeconds: seconds ?? undefined,
+  } as Partial<Profile>);
+}
+
 /** Change the active palette for the profile. The data-theme
  * attribute on `<html>` is reactive (see ActiveProfileTheme), so the
  * UI re-paints as soon as Dexie's live query fires. */

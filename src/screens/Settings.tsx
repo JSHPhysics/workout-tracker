@@ -13,6 +13,7 @@ import {
 import {
   deleteProfile,
   setKeepScreenOn,
+  setProfileDefaultRestSeconds,
   setPeriodTrackingEnabled,
   setProfileEquipment,
   setProfileTheme,
@@ -154,6 +155,7 @@ function Preferences() {
           />
         </label>
       </article>
+      <RestTimerCard profile={profile} />
       <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
         <label className="flex items-start justify-between gap-4">
           <span className="flex flex-col gap-0.5">
@@ -327,6 +329,77 @@ function InstallCard() {
  * toggle) — there's no Save button. The Live preview row at the bottom
  * gives a sanity check against an example 100 kg working weight so the
  * user can see what the numbers actually mean. */
+/** Stepper card for the per-profile default rest. Sits between the
+ * per-(exercise) memory the rest bar saves on +/- 30s and the seed
+ * defaults baked into each exercise. Setting this to a value
+ * overrides every seed default for new exercises this profile hasn't
+ * yet adjusted on the fly; tap the explicit "Use exercise default"
+ * to clear and fall back to the seed values again.
+ *
+ * The 30 s step matches the in-flight ± controls so a "default 90 s"
+ * picked here lines up with what the rest bar will offer to nudge
+ * to. Range 30–600 s covers the typical accessory-to-heavy-compound
+ * spread. */
+function RestTimerCard({ profile }: { profile: Profile }) {
+  // Show an explicit number even when the field is unset so the
+  // stepper isn't disabled — 90 s is the global fallback the resolver
+  // would have used anyway.
+  const persisted = profile.defaultRestSeconds;
+  const value = persisted ?? 90;
+  const onChange = (next: number) => {
+    void setProfileDefaultRestSeconds(profile.id, next);
+  };
+  const formatSec = (v: number): string =>
+    v >= 60
+      ? v % 60 === 0
+        ? `${v / 60}m`
+        : `${Math.floor(v / 60)}m ${v % 60}s`
+      : `${v}s`;
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h3 className="font-display text-base font-medium">Rest timer</h3>
+        <p className="text-xs text-fg-muted">
+          Default rest between sets. The rest bar's{' '}
+          <span className="font-medium text-fg">± 30 s</span> buttons
+          override this per-exercise — once you adjust the timer
+          mid-workout, that exercise remembers its new rest for next
+          session.
+        </p>
+      </header>
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-soft px-3 py-2">
+        <span className="flex flex-col gap-0.5">
+          <span className="text-xs font-medium text-fg">Default rest</span>
+          <span className="text-[0.65rem] text-fg-muted">
+            {persisted === undefined
+              ? 'Using each exercise’s seed default'
+              : `Applied when no per-exercise memory exists`}
+          </span>
+        </span>
+        <NumberStepper
+          value={value}
+          onChange={onChange}
+          step={30}
+          min={30}
+          max={600}
+          format={formatSec}
+          width={5}
+          ariaLabel="Default rest in seconds"
+        />
+      </div>
+      {persisted !== undefined && (
+        <button
+          type="button"
+          onClick={() => void setProfileDefaultRestSeconds(profile.id, null)}
+          className="self-end text-[0.65rem] uppercase tracking-[0.16em] text-fg-muted transition hover:text-fg"
+        >
+          Use exercise defaults
+        </button>
+      )}
+    </article>
+  );
+}
+
 function WarmupPercentagesCard({ profile }: { profile: Profile }) {
   const pcts = profile.warmupPercentages;
   // Show three rows. If a profile somehow has fewer entries we pad up

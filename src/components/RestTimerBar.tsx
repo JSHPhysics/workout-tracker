@@ -145,13 +145,22 @@ export function RestTimerBar() {
           {!isEnded && (
             <button
               type="button"
+              onClick={() => extend(-30)}
+              // Greyed out when shortening would push the total below
+              // 30 s — no point letting the user trip the clamp.
+              disabled={totalMs <= 30_000}
+              className="flex h-9 min-w-[2.5rem] items-center justify-center rounded-full bg-surface-soft px-2 text-[0.7rem] font-medium tracking-wide text-fg transition hover:bg-surface-elevated disabled:opacity-40"
+              title="Subtract 30 seconds"
+              aria-label="Subtract 30 seconds"
+            >
+              −30s
+            </button>
+          )}
+          {!isEnded && (
+            <button
+              type="button"
               onClick={() => extend(30)}
-              className={[
-                'flex h-9 min-w-[2.5rem] items-center justify-center rounded-full px-2 text-[0.7rem] font-medium tracking-wide transition',
-                isPaused
-                  ? 'bg-surface-soft text-fg hover:bg-surface-elevated'
-                  : 'bg-surface-soft text-fg hover:bg-surface-elevated',
-              ].join(' ')}
+              className="flex h-9 min-w-[2.5rem] items-center justify-center rounded-full bg-surface-soft px-2 text-[0.7rem] font-medium tracking-wide text-fg transition hover:bg-surface-elevated"
               title="Add 30 seconds"
               aria-label="Add 30 seconds"
             >

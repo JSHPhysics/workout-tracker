@@ -3,6 +3,7 @@ import type {
   Barbell,
   BodyweightLog,
   Exercise,
+  ExerciseRestPref,
   PRRecord,
   PeriodLog,
   PlateInventory,
@@ -74,6 +75,7 @@ export type WorkoutDB = Dexie & {
   bodyweightLogs: EntityTable<BodyweightLog, 'id'>;
   prRecords: EntityTable<PRRecord, 'id'>;
   periodLogs: EntityTable<PeriodLog, 'id'>;
+  exerciseRestPrefs: EntityTable<ExerciseRestPref, 'id'>;
 };
 
 // Names index entries:
@@ -380,3 +382,32 @@ db.version(9)
       await profilesTable.update(p.id, { keepScreenOn: false });
     }
   });
+
+// v10 — Per-exercise rest-timer memory + per-profile default rest.
+//
+// New table `exerciseRestPrefs` keyed by a synthetic `${profileId}-${exerciseId}`
+// id so put-as-upsert just works. Storing the (profileId, exerciseId)
+// tuple as the row's primary key avoids a separate uniqueness index.
+//
+// `Profile.defaultRestSeconds` is a new optional column — left
+// undefined on existing profiles. Resolution order in SetRow becomes:
+//   exerciseRestPref ?? planned.restSeconds ?? profile.defaultRestSeconds
+//     ?? exercise.defaultRestSeconds ?? 90s.
+db.version(10).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  // No upgrader logic — `defaultRestSeconds` is optional + absent on
+  // legacy profiles is correct (the resolution chain falls through to
+  // exercise.defaultRestSeconds / 90s as before).
+  exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+});

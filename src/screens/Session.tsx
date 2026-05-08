@@ -14,6 +14,7 @@ import {
   useSession,
 } from '../db/sessions';
 import { useMostRecentSetMetric, useSessionSetLogs } from '../db/setLogs';
+import { useExerciseRestPref } from '../db/exerciseRestPrefs';
 import { useExerciseMap } from '../db/exercises';
 import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
 import { useLatestBodyweight } from '../db/bodyweight';
@@ -386,6 +387,7 @@ export function Session() {
                     warmupPercentages={
                       profile?.warmupPercentages ?? [30, 45, 60]
                     }
+                    profileDefaultRestSeconds={profile?.defaultRestSeconds}
                     onSwap={(exerciseOrder) =>
                       setPickerTarget({
                         kind: 'swap',
@@ -564,6 +566,9 @@ interface BlockCardProps {
   latestBodyweight: number | null;
   useBodyweightForVolume: boolean;
   warmupPercentages: readonly number[];
+  /** Profile's preferred default rest in seconds. Falls back to the
+   * exercise's seed default when undefined. */
+  profileDefaultRestSeconds: number | undefined;
   onSwap: (exerciseOrder: number) => void;
 }
 
@@ -581,6 +586,7 @@ function BlockCard({
   latestBodyweight,
   useBodyweightForVolume,
   warmupPercentages,
+  profileDefaultRestSeconds,
   onSwap,
 }: BlockCardProps) {
   const skipped = !!block.skipped;
@@ -643,6 +649,7 @@ function BlockCard({
             latestBodyweight={latestBodyweight}
             useBodyweightForVolume={useBodyweightForVolume}
             warmupPercentages={warmupPercentages}
+            profileDefaultRestSeconds={profileDefaultRestSeconds}
             onSwap={() => onSwap(exIdx)}
           />
         ))}
@@ -667,6 +674,7 @@ interface ExerciseGroupProps {
   latestBodyweight: number | null;
   useBodyweightForVolume: boolean;
   warmupPercentages: readonly number[];
+  profileDefaultRestSeconds: number | undefined;
   onSwap: () => void;
 }
 
@@ -686,6 +694,7 @@ function ExerciseGroup({
   latestBodyweight,
   useBodyweightForVolume,
   warmupPercentages,
+  profileDefaultRestSeconds,
   onSwap,
 }: ExerciseGroupProps) {
   const [previewing, setPreviewing] = useState(false);
@@ -699,6 +708,9 @@ function ExerciseGroup({
     exercise?.id,
     sessionId,
   );
+  // Per-exercise rest memory — saved by the rest bar's +/- 30s
+  // controls. Highest-priority entry in the resolution chain below.
+  const restPref = useExerciseRestPref(profileId, exercise?.id);
   if (!exercise) {
     return (
       <div className="text-sm text-fg-muted">
@@ -709,6 +721,22 @@ function ExerciseGroup({
   const target = formatTarget(planned);
   const canRemoveSet = planned.setCount > 1;
   const warmupSets = planned.warmupSets ?? [];
+  // Rest-timer resolution chain — most-specific signal wins:
+  //   1. per-(profile, exercise) pref the user has saved via ± 30s
+  //   2. routine-template intentional override on this slot
+  //   3. user's profile-wide default rest (Settings → Preferences)
+  //   4. exercise's seed default
+  //   5. 90 s global fallback
+  // restPref is undefined while loading (Dexie live-query) — treat
+  // that as "no pref set" so the chain still resolves cleanly on
+  // first render.
+  const GLOBAL_DEFAULT_REST_S = 90;
+  const resolvedRestSeconds =
+    (typeof restPref === 'number' ? restPref : null) ??
+    planned.restSeconds ??
+    profileDefaultRestSeconds ??
+    exercise.defaultRestSeconds ??
+    GLOBAL_DEFAULT_REST_S;
   // The warm-up generator stashes specs on the planned slot at
   // setNumbers 1..N and bumps setCount by N. To avoid renumbering
   // existing rows we only allow generation when the slot has neither
@@ -888,6 +916,7 @@ function ExerciseGroup({
               <SetRow
                 key={setNumber}
                 sessionId={sessionId}
+                profileId={profileId}
                 blockOrder={blockOrder}
                 exerciseOrder={exerciseOrder}
                 setNumber={setNumber}
@@ -898,6 +927,7 @@ function ExerciseGroup({
                   null
                 }
                 blockSkipped={blockSkipped}
+                restSeconds={resolvedRestSeconds}
                 barWeight={barWeight}
                 plateInventory={plateInventory}
                 latestBodyweight={latestBodyweight}

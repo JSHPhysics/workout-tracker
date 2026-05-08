@@ -24,6 +24,10 @@ import type {
 
 interface Props {
   sessionId: string;
+  /** Profile that owns this session — used to scope the rest-timer
+   * persistence context (the timer's +/- 30s remembers the new total
+   * per (profile, exercise)). */
+  profileId: string;
   blockOrder: number;
   exerciseOrder: number;
   setNumber: number;
@@ -33,6 +37,10 @@ interface Props {
   existingLog: SetLog | null;
   /** Whether the parent block is skipped — locks edits and tick. */
   blockSkipped: boolean;
+  /** Rest seconds to start the timer with after a tick. ExerciseGroup
+   * resolves this in priority order: per-exercise pref → planned
+   * override → profile default → exercise seed default → 90s. */
+  restSeconds: number;
   /** Default barbell weight for this profile, used by the plate viz on
    * `usesBarbell` exercises. null while loading or unavailable. */
   barWeight: number | null;
@@ -70,30 +78,22 @@ interface Props {
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
 const REPS_STEP = 1;
 const TIME_STEP = 5;
-// Fallback rest when neither the planned slot nor the exercise carries
-// a default. Settings UI (milestone 12) will let the user override.
-const GLOBAL_DEFAULT_REST_S = 90;
-
-function resolveRestSeconds(
-  planned: PlannedExercise,
-  exercise: Exercise,
-): number {
-  return (
-    planned.restSeconds ??
-    exercise.defaultRestSeconds ??
-    GLOBAL_DEFAULT_REST_S
-  );
-}
 
 export function SetRow({
   sessionId,
+  profileId,
   blockOrder,
   exerciseOrder,
   setNumber,
-  planned,
+  // `planned` was used by the local rest-resolver before
+  // ExerciseGroup took over the resolution chain. Kept on Props for
+  // callers that still pass it; intentionally omitted from the
+  // destructure since the rest-related code now uses the resolved
+  // `restSeconds` prop directly.
   exercise,
   existingLog,
   blockSkipped,
+  restSeconds,
   barWeight,
   plateInventory,
   latestBodyweight,
@@ -237,11 +237,14 @@ export function SetRow({
         ...(notes.trim() !== '' ? { notes } : {}),
       });
       // Auto-start the rest timer for working / drop / failure / amrap
-      // sets — warm-ups don't need a rest cue.
+      // sets — warm-ups don't need a rest cue. Pass the (profile,
+      // exercise) context so on-the-fly +/- 30s adjustments persist
+      // and recall next time this exercise comes up.
       if (setType !== 'warmup') {
         startRest(
-          resolveRestSeconds(planned, exercise),
+          restSeconds,
           `After ${exercise.name} · Set ${setNumber}`,
+          { profileId, exerciseId: exercise.id },
         );
       }
       scrollToNextSetAfter(blockOrder, exerciseOrder, setNumber);

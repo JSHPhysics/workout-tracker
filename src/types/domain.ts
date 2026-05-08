@@ -183,6 +183,11 @@ export interface Profile {
    * show me bodyweight only". `bodyweight` is implicit but we still
    * persist it so the picker filter reads cleanly. */
   equipment: EquipmentTag[];
+  /** Per-profile fallback rest time (seconds) used when no per-exercise
+   * preference exists, no routine override is set, and no seed default
+   * is defined for the exercise. Optional; absent means "use the seed
+   * default" / 90s. Configurable from Settings → Preferences. */
+  defaultRestSeconds?: number;
   /** Percentages used by the warm-up generator on the session screen.
    * Each entry is a percent of the user-supplied target working weight;
    * order is the order the warm-up sets are pre-logged in. Default
@@ -390,6 +395,24 @@ export interface PRRecord {
   achievedAt: string;
   sessionId: string;
   setLogId: string;
+}
+
+// --- Per-exercise rest preferences ------------------------------------------
+
+/** Persisted rest-timer length for a specific (profile, exercise) pair.
+ * Updated whenever the user adjusts the running timer via +/- 30s on
+ * the rest bar; recalled the next time that exercise is started so the
+ * adjustment carries across sessions. */
+export interface ExerciseRestPref {
+  /** Synthetic id of `${profileId}-${exerciseId}` so put-as-upsert
+   * works without a separate "find then update" round-trip. */
+  id: string;
+  profileId: string;
+  exerciseId: string;
+  restSeconds: number;
+  /** ISO 8601. Currently informational only; could be used to garbage-
+   * collect prefs for unused exercises later. */
+  updatedAt: string;
 }
 
 // --- Bodyweight log ---------------------------------------------------------
