@@ -102,11 +102,15 @@ export type PRType = (typeof PR_TYPES)[number];
  * themes go here and in index.css together. */
 export const THEMES = [
   'emerald',
-  'rose',
+  'teal',
   'sky',
+  'indigo',
   'violet',
-  'amber',
+  'fuchsia',
+  'rose',
   'ember',
+  'amber',
+  'slate',
 ] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -114,22 +118,30 @@ export type Theme = (typeof THEMES)[number];
  * alongside a colour swatch and don't need to be self-explanatory. */
 export const THEME_LABELS: Record<Theme, string> = {
   emerald: 'Emerald',
-  rose: 'Rose',
+  teal: 'Teal',
   sky: 'Sky',
+  indigo: 'Indigo',
   violet: 'Violet',
-  amber: 'Amber',
+  fuchsia: 'Fuchsia',
+  rose: 'Rose',
   ember: 'Ember',
+  amber: 'Amber',
+  slate: 'Slate',
 };
 
 /** Hex previews used by the theme picker (the live theme rebinds CSS
  * variables, but the picker tile needs a literal swatch colour). */
 export const THEME_SWATCHES: Record<Theme, string> = {
   emerald: '#22c55e',
-  rose: '#c52f63',
+  teal: '#14b8a6',
   sky: '#0ea5e9',
+  indigo: '#6366f1',
   violet: '#8b5cf6',
-  amber: '#f59e0b',
+  fuchsia: '#d946ef',
+  rose: '#c52f63',
   ember: '#ef4444',
+  amber: '#f59e0b',
+  slate: '#64748b',
 };
 
 /** Biological sex, captured at profile creation. Drives sensible

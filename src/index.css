@@ -68,6 +68,16 @@
     --accent-fg: 12 10 8;
   }
 
+  /* === teal — accent-only, on cream base ============================== */
+  html[data-theme='teal'] {
+    --accent: 20 184 166;          /* teal-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='teal'] {
+    --accent: 45 212 191;           /* teal-400 */
+    --accent-fg: 12 10 8;
+  }
+
   /* === sky — accent-only, on cream base =============================== */
   html[data-theme='sky'] {
     --accent: 14 165 233;          /* sky-500 */
@@ -78,6 +88,16 @@
     --accent-fg: 12 10 8;
   }
 
+  /* === indigo — accent-only, on cream base ============================ */
+  html[data-theme='indigo'] {
+    --accent: 99 102 241;          /* indigo-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='indigo'] {
+    --accent: 129 140 248;         /* indigo-400 */
+    --accent-fg: 12 10 8;
+  }
+
   /* === violet — accent-only, on cream base ============================ */
   html[data-theme='violet'] {
     --accent: 139 92 246;          /* violet-500 */
@@ -85,6 +105,18 @@
   }
   html.dark[data-theme='violet'] {
     --accent: 167 139 250;         /* violet-400 */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === fuchsia — accent-only, on cream base =========================== */
+  /* Distinct from `rose`: same hue family, but rose flips the entire
+   * surface palette to pinks; fuchsia just changes the accent. */
+  html[data-theme='fuchsia'] {
+    --accent: 217 70 239;          /* fuchsia-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='fuchsia'] {
+    --accent: 232 121 249;         /* fuchsia-400 */
     --accent-fg: 12 10 8;
   }
 
@@ -105,6 +137,18 @@
   }
   html.dark[data-theme='ember'] {
     --accent: 248 113 113;         /* red-400 */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === slate — neutral monochrome accent ============================== */
+  /* For anyone who wants the app to read as a single tone rather than
+   * an accent-on-cream split. */
+  html[data-theme='slate'] {
+    --accent: 100 116 139;         /* slate-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='slate'] {
+    --accent: 148 163 184;         /* slate-400 */
     --accent-fg: 12 10 8;
   }
 
