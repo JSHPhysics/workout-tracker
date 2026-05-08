@@ -20,6 +20,7 @@ interface LogSetInput {
 
 export async function logSet(input: LogSetInput): Promise<string> {
   const id = crypto.randomUUID();
+  const completedAt = await deriveCompletedAt(input.sessionId);
   const log: SetLog = {
     id,
     sessionId: input.sessionId,
@@ -40,10 +41,40 @@ export async function logSet(input: LogSetInput): Promise<string> {
       : {}),
     side: input.side ?? null,
     prTypes: [] as PRType[],
-    completedAt: new Date().toISOString(),
+    completedAt,
   };
   await db.setLogs.add(log);
   return id;
+}
+
+/** Threshold for treating a session as "retrospective" — the user
+ * is back-filling a workout from a previous day rather than ticking
+ * sets in real time. Mirrors the constants in db/sessions.ts and
+ * screens/Session.tsx. */
+const RETRO_THRESHOLD_MS = 12 * 60 * 60 * 1000;
+
+/** Compute the right `completedAt` for a new SetLog. For live
+ * sessions (started <= 12h ago) this is `now` — same as the original
+ * single-line behaviour. For retrospective sessions the chart buckets
+ * by `setLog.completedAt`; using `now` for sets that belong to a
+ * past workout collapses every retrospective tick into "today",
+ * silently breaking the per-exercise chart. Use the session's
+ * `startedAt` instead, with a small ascending offset so ordering is
+ * preserved across multiple ticks in quick succession. */
+async function deriveCompletedAt(sessionId: string): Promise<string> {
+  const session = await db.sessions.get(sessionId);
+  if (!session) return new Date().toISOString();
+  const startedMs = Date.parse(session.startedAt);
+  const nowMs = Date.now();
+  if (nowMs - startedMs <= RETRO_THRESHOLD_MS) {
+    return new Date(nowMs).toISOString();
+  }
+  const existingCount = await db.setLogs.where({ sessionId }).count();
+  // +60s per existing set so the order matches the order the user
+  // ticked them in. After ~60 ticks the offset crosses into the
+  // session's nominal "next hour" — that's fine; the date is what
+  // the chart cares about.
+  return new Date(startedMs + (existingCount + 1) * 60 * 1000).toISOString();
 }
 
 export async function deleteSet(id: string): Promise<void> {
