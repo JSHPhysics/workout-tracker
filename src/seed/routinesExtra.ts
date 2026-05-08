@@ -46,7 +46,7 @@ const mobilityDay = (dayNumber: number): DayTemplate =>
     single({ exerciseId: 'stretch-hip-flexor-kneeling', setCount: 2, durationSeconds: { min: 30, max: 45 }, perSide: true }),
     single({ exerciseId: 'stretch-hamstring-supine', setCount: 2, durationSeconds: { min: 30, max: 45 }, perSide: true }),
     single({ exerciseId: 'stretch-figure-four', setCount: 2, durationSeconds: { min: 30, max: 45 }, perSide: true }),
-    single({ exerciseId: 'stretch-pigeon', setCount: 1, durationSeconds: { min: 30, max: 60 }, perSide: true }),
+    single({ exerciseId: 'stretch-pigeon', setCount: 2, durationSeconds: { min: 30, max: 60 }, perSide: true }),
     single({ exerciseId: 'stretch-tspine-rotation', setCount: 2, durationSeconds: { min: 20, max: 30 }, perSide: true }),
     single({ exerciseId: 'stretch-child-pose', setCount: 1, durationSeconds: { min: 45, max: 60 } }),
   ]);
