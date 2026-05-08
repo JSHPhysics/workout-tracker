@@ -95,6 +95,16 @@ export function RestTimerBar() {
   const isEnded = status === 'ended';
   const isPaused = status === 'paused';
 
+  // Tailwind utility shared by all action-row buttons. Each button is
+  // flex-1 so the row divides evenly regardless of how many buttons
+  // are visible (4 while running/paused, 2 when ended).
+  const actionBase = [
+    'flex h-9 flex-1 items-center justify-center rounded-full text-[0.7rem] font-medium tracking-wide transition disabled:opacity-40',
+    isEnded
+      ? 'bg-accent-fg/10 text-accent-fg hover:bg-accent-fg/20'
+      : 'bg-surface-soft text-fg hover:bg-surface-elevated',
+  ].join(' ');
+
   return (
     <div
       className="fixed inset-x-0 z-30 px-3"
@@ -104,93 +114,100 @@ export function RestTimerBar() {
     >
       <div
         className={[
-          'mx-auto flex max-w-md items-center gap-3 rounded-2xl border px-3 py-2 shadow-lift backdrop-blur',
+          // Two-row stack: ring + label up top, action row below.
+          // Splitting the buttons onto their own line gives each one
+          // a thumb-friendly hit target on phone widths without
+          // anything sliding off-screen.
+          'mx-auto flex max-w-md flex-col gap-2 rounded-2xl border px-3 py-2 shadow-lift backdrop-blur',
           isEnded
             ? 'border-accent/60 bg-accent text-accent-fg'
             : 'border-line bg-surface/95 text-fg',
         ].join(' ')}
       >
-        <CircularProgress
-          progress={progress}
-          size={48}
-          stroke={4}
-          trackClassName={isEnded ? 'text-accent-fg/30' : 'text-line'}
-          fillClassName={isEnded ? 'text-accent-fg' : 'text-accent'}
-          ariaLabel={
-            isEnded ? 'Rest done' : `${formatRemaining(remaining)} remaining`
-          }
-        >
-          <span className="font-mono text-[0.7rem] tabular-nums">
-            {isEnded ? '✓' : formatRemaining(remaining)}
-          </span>
-        </CircularProgress>
-
-        <div className="flex flex-1 flex-col">
-          <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em]">
-            {isEnded ? 'Rest done' : isPaused ? 'Rest paused' : 'Resting'}
-          </span>
-          {label && (
-            <span
-              className={[
-                'truncate text-xs',
-                isEnded ? 'text-accent-fg/80' : 'text-fg-muted',
-              ].join(' ')}
-            >
-              {label}
+        {/* Row 1 — ring + status + label */}
+        <div className="flex items-center gap-3">
+          <CircularProgress
+            progress={progress}
+            size={48}
+            stroke={4}
+            trackClassName={isEnded ? 'text-accent-fg/30' : 'text-line'}
+            fillClassName={isEnded ? 'text-accent-fg' : 'text-accent'}
+            ariaLabel={
+              isEnded ? 'Rest done' : `${formatRemaining(remaining)} remaining`
+            }
+          >
+            <span className="font-mono text-[0.7rem] tabular-nums">
+              {isEnded ? '✓' : formatRemaining(remaining)}
             </span>
-          )}
+          </CircularProgress>
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em]">
+              {isEnded ? 'Rest done' : isPaused ? 'Rest paused' : 'Resting'}
+            </span>
+            {label && (
+              <span
+                className={[
+                  'truncate text-xs',
+                  isEnded ? 'text-accent-fg/80' : 'text-fg-muted',
+                ].join(' ')}
+              >
+                {label}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        {/* Row 2 — action buttons. While running/paused: −30s, +30s,
+            pause/resume, skip. When ended: +30s (re-arms the timer
+            for "I want a tiny bit more") and dismiss. */}
+        <div className="flex items-center gap-1.5">
           {!isEnded && (
             <button
               type="button"
               onClick={() => extend(-30)}
-              // Greyed out when shortening would push the total below
-              // 30 s — no point letting the user trip the clamp.
+              // Disabled when shortening would drop the total below
+              // 30 s — keeps the floor predictable.
               disabled={totalMs <= 30_000}
-              className="flex h-9 min-w-[2.5rem] items-center justify-center rounded-full bg-surface-soft px-2 text-[0.7rem] font-medium tracking-wide text-fg transition hover:bg-surface-elevated disabled:opacity-40"
+              className={actionBase}
               title="Subtract 30 seconds"
               aria-label="Subtract 30 seconds"
             >
               −30s
             </button>
           )}
-          {!isEnded && (
-            <button
-              type="button"
-              onClick={() => extend(30)}
-              className="flex h-9 min-w-[2.5rem] items-center justify-center rounded-full bg-surface-soft px-2 text-[0.7rem] font-medium tracking-wide text-fg transition hover:bg-surface-elevated"
-              title="Add 30 seconds"
-              aria-label="Add 30 seconds"
-            >
-              +30s
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => extend(30)}
+            className={actionBase}
+            title="Add 30 seconds"
+            aria-label="Add 30 seconds"
+          >
+            +30s
+          </button>
           {!isEnded && (
             <button
               type="button"
               onClick={isPaused ? resume : pause}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-fg transition hover:bg-surface-elevated"
+              className={actionBase}
               aria-label={isPaused ? 'Resume rest' : 'Pause rest'}
               title={isPaused ? 'Resume' : 'Pause'}
             >
-              {isPaused ? '▶' : '❚❚'}
+              <span aria-hidden className="text-sm leading-none">
+                {isPaused ? '▶' : '❚❚'}
+              </span>
             </button>
           )}
           <button
             type="button"
             onClick={isEnded ? dismiss : end}
-            className={[
-              'flex h-9 w-9 items-center justify-center rounded-full transition',
-              isEnded
-                ? 'bg-accent-fg/10 text-accent-fg hover:bg-accent-fg/20'
-                : 'bg-surface-soft text-fg hover:bg-surface-elevated',
-            ].join(' ')}
+            className={actionBase}
             aria-label={isEnded ? 'Dismiss' : 'Skip rest'}
             title={isEnded ? 'Dismiss' : 'Skip'}
           >
-            {isEnded ? '✕' : '⏭'}
+            <span aria-hidden className="text-sm leading-none">
+              {isEnded ? '✕' : '⏭'}
+            </span>
           </button>
         </div>
       </div>
