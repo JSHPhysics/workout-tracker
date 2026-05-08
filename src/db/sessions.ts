@@ -269,17 +269,22 @@ interface WarmupSpec {
   reps: number;
 }
 
-/** Insert N pre-logged warm-up sets at the head of an exercise's set
- * list and bump its `setCount` so the planned working sets reflow to
- * positions N+1..M.
+/** Stash N suggested warm-up sets on the planned exercise and bump
+ * `setCount` so they occupy setNumbers 1..N (planned working sets
+ * reflow to N+1..M).
  *
- * Caller is expected to gate this so it only runs when no set logs
- * already exist for the exercise — without that guard the renumbering
- * of pre-existing rows gets gnarly. The session screen enforces this.
+ * Importantly we do **not** pre-log SetLog rows: SetRow treats a
+ * present SetLog as "this set is completed" — pre-logging would render
+ * the warm-ups as already-ticked, and an Undo would lose the suggested
+ * weight to the autofill working weight. By keeping the suggestion on
+ * the plan instead, the row stays empty/un-ticked with the suggested
+ * weight pre-filled in the stepper; tick → real SetLog → undo →
+ * stepper falls back to the suggestion again.
  *
- * Single Dexie transaction over `sessions` + `setLogs` so a partial
- * failure can't leave warm-up rows behind without the matching
- * setCount bump (or vice versa). */
+ * Caller is expected to gate this so it only runs when no warm-ups
+ * exist yet *and* no logs for the slot — both prevent the renumbering
+ * pain that comes from inserting at the head of an in-progress set
+ * list. */
 export async function addWarmupSets(
   sessionId: string,
   blockOrder: number,
@@ -287,39 +292,16 @@ export async function addWarmupSets(
   warmups: WarmupSpec[],
 ): Promise<void> {
   if (warmups.length === 0) return;
-  await db.transaction('rw', [db.sessions, db.setLogs], async () => {
+  await db.transaction('rw', db.sessions, async () => {
     const session = await db.sessions.get(sessionId);
     if (!session) return;
     const block = session.livePlan[blockOrder];
     const planned = block?.exercises[exerciseOrder];
     if (!planned) return;
 
-    // Pre-log each warm-up at setNumbers 1..N. The user adjusts these
-    // inline like any other set; deleting them via row-level UI is
-    // possible but doesn't decrement setCount (parity with the
-    // existing − Set affordance, which is the canonical removal path).
-    const now = new Date().toISOString();
-    const rows: SetLog[] = warmups.map((w, i) => ({
-      id: crypto.randomUUID(),
-      sessionId,
-      exerciseId: planned.exerciseId,
-      blockOrder,
-      exerciseOrder,
-      setNumber: i + 1,
-      setType: 'warmup',
-      weight: w.weight,
-      reps: w.reps,
-      side: null,
-      prTypes: [],
-      // Stagger by ms so the History "in order completed" sort renders
-      // them sequentially when displayed alongside the working sets.
-      completedAt: new Date(Date.parse(now) + i).toISOString(),
-    }));
-    await db.setLogs.bulkAdd(rows);
-
-    // Bump setCount by warmups.length on the planned slot.
     const nextPlan = structuredClone(session.livePlan);
     const slot = nextPlan[blockOrder]!.exercises[exerciseOrder]!;
+    slot.warmupSets = warmups.map((w) => ({ weight: w.weight, reps: w.reps }));
     slot.setCount = slot.setCount + warmups.length;
     await db.sessions.update(sessionId, { livePlan: nextPlan });
   });

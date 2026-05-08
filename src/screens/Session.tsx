@@ -630,11 +630,13 @@ function ExerciseGroup({
   }
   const target = formatTarget(planned);
   const canRemoveSet = planned.setCount > 1;
-  // The warm-up generator pre-logs setNumbers 1..N and bumps setCount
-  // by N. To avoid renumbering existing rows we only allow generation
-  // before any sets have been logged for this exercise slot. Also
-  // gated on weighted exercises — bodyweight / time / walking lifts
-  // have no working weight to multiply against.
+  const warmupSets = planned.warmupSets ?? [];
+  // The warm-up generator stashes specs on the planned slot at
+  // setNumbers 1..N and bumps setCount by N. To avoid renumbering
+  // existing rows we only allow generation when the slot has neither
+  // existing warm-ups nor any logged sets. Also gated on weighted
+  // exercises — bodyweight / time / walking lifts have no working
+  // weight to multiply against.
   const hasAnyLogsForSlot = Array.from(
     { length: planned.setCount },
     (_, i) => i + 1,
@@ -642,12 +644,17 @@ function ExerciseGroup({
   const canGenerateWarmups =
     exercise.measurementType === 'weight_reps' &&
     warmupPercentages.length > 0 &&
+    warmupSets.length === 0 &&
     !hasAnyLogsForSlot;
 
   /** Per-set autofill defaults. Walks back through the in-session
    * sets (N-1, N-2, ... 1) for the most recent logged value of each
    * metric. Falls back to the cross-session prior. Falls back again
-   * to the planned-range midpoint (for reps / duration) or 0. */
+   * to the planned-range midpoint (for reps / duration) or 0.
+   *
+   * Warm-up rows (setNumbers 1..N when `planned.warmupSets` is set)
+   * short-circuit to the suggested weight/reps so the row pre-fills
+   * with the calculated warm-up load and survives undo. */
   const computeDefaults = (
     setNumber: number,
   ): {
@@ -656,6 +663,15 @@ function ExerciseGroup({
     durationSeconds: number;
     steps: number;
   } => {
+    if (setNumber <= warmupSets.length) {
+      const spec = warmupSets[setNumber - 1]!;
+      return {
+        weight: spec.weight,
+        reps: spec.reps,
+        durationSeconds: 0,
+        steps: 0,
+      };
+    }
     let weight: number | undefined;
     let reps: number | undefined;
     let durationSeconds: number | undefined;
@@ -760,6 +776,7 @@ function ExerciseGroup({
         {Array.from({ length: planned.setCount }, (_, i) => i + 1).map(
           (setNumber) => {
             const defaults = computeDefaults(setNumber);
+            const isWarmupPosition = setNumber <= warmupSets.length;
             return (
               <SetRow
                 key={setNumber}
@@ -782,6 +799,9 @@ function ExerciseGroup({
                 defaultReps={defaults.reps}
                 defaultDuration={defaults.durationSeconds}
                 defaultSteps={defaults.steps}
+                {...(isWarmupPosition
+                  ? { defaultSetType: 'warmup' as const }
+                  : {})}
               />
             );
           },

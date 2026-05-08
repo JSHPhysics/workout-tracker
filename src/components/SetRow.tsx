@@ -56,6 +56,11 @@ interface Props {
   defaultReps: number;
   defaultDuration: number;
   defaultSteps: number;
+  /** Initial set type for empty rows. The warm-up generator uses this
+   * to pre-cycle the chip to "WARM-UP" without having to pre-log the
+   * row (which would render it as already-ticked). Ignored once an
+   * `existingLog` is present — the log's own `setType` wins. */
+  defaultSetType?: SetType;
 }
 
 const WEIGHT_STEP = 2.5; // milestone 6 will make this configurable per profile.
@@ -93,6 +98,7 @@ export function SetRow({
   defaultReps,
   defaultDuration,
   defaultSteps,
+  defaultSetType,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isWalking = exercise.measurementType === 'walking';
@@ -110,7 +116,7 @@ export function SetRow({
     existingLog?.steps ?? defaultSteps,
   );
   const [setType, setSetType] = useState<SetType>(
-    existingLog?.setType ?? 'working',
+    existingLog?.setType ?? defaultSetType ?? 'working',
   );
   const [rpe, setRpe] = useState<number | null>(existingLog?.rpe ?? null);
   const [notes, setNotes] = useState<string>(existingLog?.notes ?? '');
@@ -153,6 +159,12 @@ export function SetRow({
       setReps(defaultReps);
       setDuration(defaultDuration);
       setSteps(defaultSteps);
+      // Re-cycle the set-type chip to its default too, so a freshly
+      // generated warm-up row reads as "WARM-UP" before tick. The user
+      // can still cycle the chip manually before ticking; that change
+      // sticks because we only re-sync when the row hasn't been
+      // touched (`dirty === false`).
+      setSetType(defaultSetType ?? 'working');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -161,6 +173,7 @@ export function SetRow({
     defaultReps,
     defaultDuration,
     defaultSteps,
+    defaultSetType,
   ]);
 
   const completed = !!existingLog;
