@@ -4,11 +4,7 @@ import { useProfile } from '../db/profiles';
 import { BackupNagBanner } from './BackupNag';
 import { TabBar } from './TabBar';
 import { ThemeToggle } from './ThemeToggle';
-
-const ACCENT_DOT: Record<string, string> = {
-  'profile-josh': 'bg-profile-josh',
-  'profile-hayley': 'bg-profile-hayley',
-};
+import { THEME_SWATCHES } from '../types';
 
 export function AppShell() {
   const activeProfileId = useActiveProfile((s) => s.activeProfileId);
@@ -42,10 +38,10 @@ export function AppShell() {
         >
           <span
             aria-hidden
-            className={[
-              'inline-block h-2.5 w-2.5 rounded-full',
-              ACCENT_DOT[profile.accent] ?? 'bg-cream-400',
-            ].join(' ')}
+            className="inline-block h-2.5 w-2.5 rounded-full"
+            style={{
+              background: THEME_SWATCHES[profile.theme] ?? '#8a8377',
+            }}
           />
           <span className="font-display text-base font-medium tracking-tight">
             {profile.name}

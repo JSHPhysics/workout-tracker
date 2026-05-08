@@ -97,11 +97,57 @@ export type PRType = (typeof PR_TYPES)[number];
 
 // --- Profile + equipment ----------------------------------------------------
 
+/** Theme tokens. Each value resolves to a `[data-theme="..."]` selector
+ * in index.css that re-binds the surface + accent CSS variables. New
+ * themes go here and in index.css together. */
+export const THEMES = [
+  'emerald',
+  'rose',
+  'sky',
+  'violet',
+  'amber',
+  'ember',
+] as const;
+export type Theme = (typeof THEMES)[number];
+
+/** Human-readable labels for the theme picker. Kept short — they sit
+ * alongside a colour swatch and don't need to be self-explanatory. */
+export const THEME_LABELS: Record<Theme, string> = {
+  emerald: 'Emerald',
+  rose: 'Rose',
+  sky: 'Sky',
+  violet: 'Violet',
+  amber: 'Amber',
+  ember: 'Ember',
+};
+
+/** Hex previews used by the theme picker (the live theme rebinds CSS
+ * variables, but the picker tile needs a literal swatch colour). */
+export const THEME_SWATCHES: Record<Theme, string> = {
+  emerald: '#22c55e',
+  rose: '#c52f63',
+  sky: '#0ea5e9',
+  violet: '#8b5cf6',
+  amber: '#f59e0b',
+  ember: '#ef4444',
+};
+
+/** Biological sex, captured at profile creation. Drives sensible
+ * defaults for period tracking + barbell choice; can be left
+ * undefined (existing legacy profiles, or users who prefer not to
+ * answer — both surfaces remain manually editable in Settings). */
+export type Sex = 'female' | 'male';
+
 export interface Profile {
   id: string;
   name: string;
-  /** Token referencing a colour bound by `[data-profile]` in index.css. */
-  accent: string;
+  /** Theme token — see {@link THEMES}. Resolves to `[data-theme="..."]`
+   * in index.css. */
+  theme: Theme;
+  /** Optional. When set to 'female', new profiles get period tracking
+   * on by default and the women's 15 kg bar set as default; otherwise
+   * the Olympic 20 kg bar is the default. Independent of theme. */
+  sex?: Sex;
   unitSystem: UnitSystem;
   activeRoutineId?: string;
   lastBackupAt?: string;

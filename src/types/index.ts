@@ -25,6 +25,8 @@ export type {
   SessionTemplateRef,
   SetLog,
   SetType,
+  Sex,
+  Theme,
   UnitSystem,
   WeekTemplate,
 } from './domain';
@@ -39,5 +41,8 @@ export {
   MUSCLE_GROUPS,
   PR_TYPES,
   SET_TYPES,
+  THEMES,
+  THEME_LABELS,
+  THEME_SWATCHES,
   assertNever,
 } from './domain';

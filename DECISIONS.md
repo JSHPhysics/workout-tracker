@@ -1736,6 +1736,90 @@ plate inventory granularity (UK home-gym: smallest plate is
 
 ---
 
+## 2026-05-08 — Open the app to anyone (drop seed profiles, add creation flow)
+
+### Context
+
+The original two seed profiles (Joshua + Hayley) baked the app's
+identity into hardcoded names and made themes a function of profile
+**id** — `[data-profile="joshua"]` / `[data-profile="hayley"]` in
+index.css. That's fine for a couple's personal tool, not fine if
+friends or family want to use it. To make the app work for anyone:
+no more seed profiles, a first-launch creation flow asks for name +
+theme + (optional) biological sex, and additional profiles can be
+added via a "+ New profile" tile on the picker.
+
+### Schema (Dexie v8)
+
+- `Profile.theme: Theme` replaces the old `Profile.accent: string`.
+  Themes are tokens like `'emerald'` / `'rose'` resolved to CSS
+  selectors via `[data-theme="..."]` in index.css.
+- `Profile.sex?: 'female' | 'male'` added as an optional new field.
+- Migration maps legacy accent values:
+  - `'profile-josh'` → `'emerald'`
+  - `'profile-hayley'` → `'rose'`
+  - anything else → `'emerald'`
+- `sex` is left undefined on legacy rows. Both surfaces it drives
+  (period tracking, default barbell) are still toggleable in
+  Settings, so guessing isn't necessary.
+- The legacy `accent` field is not deleted from old rows — fighting
+  Dexie's update typing for a stale, unread field isn't worth it.
+
+### Theme catalog
+
+Six themes: `emerald` (default), `rose` (full pink palette flip),
+`sky`, `violet`, `amber`, `ember`. All except rose are accent-only
+on the cream surface base — adding a theme is "two CSS blocks
+(light + dark) plus a label + swatch".
+
+### Sex-driven defaults
+
+When a new profile is created with `sex === 'female'`:
+- `periodTrackingEnabled` starts on (instead of off).
+- The Women's 15 kg bar is the default barbell (instead of the
+  Olympic 20 kg).
+
+`sex` could have stayed unstored and just translated at creation
+time, but persisting it lets future features (e.g. cycle insights)
+read it without forcing the user to re-answer.
+
+### First-launch flow
+
+`ProfilePicker` redirects to `/profiles/new` once the live query
+confirms zero profiles. The form auto-themes the document live as
+the user picks (via a small `useThemePreview` effect that stamps
+`data-theme` and restores it on unmount), so the choice feels
+concrete before submit. Subsequent launches show the picker with a
+"+ New profile" tile so households / friends can add themselves.
+
+`createProfile` does the full setup transactionally — profile row,
+two barbells with the sex-driven default flip, and the standard
+plate inventory — so the new profile is fully usable the moment it
+lands. The old per-boot "seed equipment if missing" loop in
+seed-loader still runs, but it's now a backstop rather than the
+primary path.
+
+### Theme application
+
+Pre-v8: `setActiveProfileId(id)` stamped `data-profile={id}` on
+`<html>` synchronously. With theme keyed off the profile row
+instead of the id, that contract didn't fit — the theme value lives
+in Dexie. Now a tiny `<ActiveProfileTheme />` mounted in App.tsx
+observes the active profile via `useProfile()` and re-applies
+`data-theme` whenever the theme field changes. Side benefit: future
+"edit your theme in Settings" picks up automatically.
+
+### Things deferred
+
+- **Editing an existing profile** (rename, theme, sex) — defer to a
+  follow-up. SCOPE rules around profile deletion still apply.
+- **Theme swatch palettes per theme** (different bg+surface combos
+  on top of just an accent flip) — only `rose` does the full palette
+  swap; could be extended but not without UX cost.
+- **Profile-image avatars** — initials on a swatch is fine for v1.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

@@ -70,12 +70,6 @@ module.exports = {
           900: '#161311',
           950: '#0c0a08',
         },
-        // Static profile chips for the picker (where no profile is yet
-        // bound — we don't want both cards painted in the same colour).
-        profile: {
-          josh: '#22c55e', // sap green
-          hayley: '#fb7185', // warm coral
-        },
       },
       boxShadow: {
         soft: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06)',

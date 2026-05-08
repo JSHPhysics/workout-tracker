@@ -9,23 +9,30 @@
 /* --- Theme tokens --------------------------------------------------------
  *
  * Semantic tokens (bg / surface / line / fg / accent) are bound to CSS
- * variables and re-defined per (theme × profile). Tailwind colours read
+ * variables and re-defined per (theme × mode). Tailwind colours read
  * these vars (see tailwind.config.cjs), so a single set of utilities
  * (`bg-bg`, `text-fg`, `border-line`, etc.) follows the active scheme.
  *
  * Cascade:
- *   :root                                  -> Joshua / no-profile, light
- *   html.dark                              -> Joshua / no-profile, dark
- *   html[data-profile="hayley"]            -> Hayley, light
- *   html.dark[data-profile="hayley"]       -> Hayley, dark
+ *   :root                                  -> default (emerald), light
+ *   html.dark                              -> default (emerald), dark
+ *   html[data-theme="rose"]                -> rose, light
+ *   html.dark[data-theme="rose"]           -> rose, dark
+ *   html[data-theme="<name>"]              -> just an accent rebind on
+ *                                             top of the cream base for
+ *                                             the simpler accent-only
+ *                                             themes.
  *
- * Hayley's palette inverts the pale-pink / light-charcoal pair across
- * modes: pale-pink surfaces with charcoal text in light mode, charcoal
- * surfaces with pale-pink text in dark.
+ * Most themes are accent-only on top of the cream surface palette.
+ * `rose` is the exception — it inverts the entire surface palette to
+ * pinks, kept from the original Hayley profile.
+ *
+ * To add a theme: append a token to THEMES in src/types/domain.ts
+ * (with a matching label + swatch), then add the matching block here.
  */
 
 @layer base {
-  /* === Joshua / default — light ======================================= */
+  /* === Default (emerald) — light cream base =========================== */
   :root {
     --bg: 250 248 243;             /* cream-50 */
     --surface: 255 255 255;
@@ -37,11 +44,11 @@
     --fg-soft: 61 57 51;           /* cream-700 */
     --fg-muted: 94 88 79;          /* cream-600 */
     --fg-faint: 138 131 119;       /* cream-500 */
-    --accent: 184 173 142;         /* champagne placeholder */
+    --accent: 34 197 94;           /* sap green */
     --accent-fg: 12 10 8;
   }
 
-  /* === Joshua / default — dark ======================================== */
+  /* === Default (emerald) — dark ======================================= */
   html.dark {
     --bg: 12 10 8;                 /* cream-950 */
     --surface: 22 19 17;           /* cream-900 */
@@ -55,14 +62,54 @@
     --fg-faint: 94 88 79;          /* cream-600 */
   }
 
-  /* === Joshua accent (works in both modes) ============================ */
-  html[data-profile='joshua'] {
-    --accent: 34 197 94;           /* sap green */
+  /* === emerald — explicit token (same as the default) ================= */
+  html[data-theme='emerald'] {
+    --accent: 34 197 94;
     --accent-fg: 12 10 8;
   }
 
-  /* === Hayley — light (pale pink surfaces, light-charcoal text) ======= */
-  html[data-profile='hayley'] {
+  /* === sky — accent-only, on cream base =============================== */
+  html[data-theme='sky'] {
+    --accent: 14 165 233;          /* sky-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='sky'] {
+    --accent: 56 189 248;          /* sky-400 reads better on dark */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === violet — accent-only, on cream base ============================ */
+  html[data-theme='violet'] {
+    --accent: 139 92 246;          /* violet-500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='violet'] {
+    --accent: 167 139 250;         /* violet-400 */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === amber — accent-only, on cream base ============================= */
+  html[data-theme='amber'] {
+    --accent: 217 119 6;           /* amber-600 — better contrast than 500 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='amber'] {
+    --accent: 251 191 36;          /* amber-400 */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === ember — accent-only, on cream base ============================= */
+  html[data-theme='ember'] {
+    --accent: 220 38 38;           /* red-600 */
+    --accent-fg: 255 255 255;
+  }
+  html.dark[data-theme='ember'] {
+    --accent: 248 113 113;         /* red-400 */
+    --accent-fg: 12 10 8;
+  }
+
+  /* === rose — full pink palette flip (light) ========================== */
+  html[data-theme='rose'] {
     --bg: 251 233 237;             /* #fbe9ed pale pink */
     --surface: 255 250 251;        /* #fffafb whisper-pink white */
     --surface-soft: 247 220 226;   /* #f7dce2 */
@@ -77,8 +124,8 @@
     --accent-fg: 255 255 255;
   }
 
-  /* === Hayley — dark (light-charcoal surfaces, pale-pink text) ======== */
-  html.dark[data-profile='hayley'] {
+  /* === rose — dark (light-charcoal surfaces, pale-pink text) ========== */
+  html.dark[data-theme='rose'] {
     --bg: 44 38 40;                /* #2c2628 warm charcoal */
     --surface: 56 48 50;           /* #383032 */
     --surface-soft: 50 42 45;      /* #322a2d */

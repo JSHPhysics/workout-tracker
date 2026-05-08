@@ -42,6 +42,14 @@ type V5Profile = Omit<Profile, 'periodTrackingEnabled'> & {
 type V6Profile = Omit<Profile, 'warmupPercentages'> & {
   warmupPercentages?: Profile['warmupPercentages'];
 };
+// Pre-v8 profiles store the legacy `accent` token (e.g. 'profile-josh')
+// instead of the new `theme` field. The v8 upgrader rewrites them.
+type V7Profile = Omit<Profile, 'theme'> & {
+  /** Legacy field. Kept here only for the migration to read; absent
+   * on the current `Profile` shape. */
+  accent?: string;
+  theme?: Profile['theme'];
+};
 
 // Single Dexie instance for the app. Each Dexie table is typed via
 // `EntityTable<T, primaryKey>`; the second generic argument is the name
@@ -289,5 +297,54 @@ db.version(7)
       await profilesTable.update(p.id, {
         warmupPercentages: [...WARMUP_PERCENTAGES_DEFAULT],
       });
+    }
+  });
+
+// v8 — Profile.theme replaces Profile.accent so themes can be picked
+// independently of the profile id (the previous design tied
+// `data-profile="joshua"` selectors to the seeded ids — fine for two
+// fixed profiles, broken for arbitrary user-named profiles). Also adds
+// optional `Profile.sex` for sex-driven defaults at creation.
+//
+// Migration map for legacy `accent` values:
+//   'profile-josh'   → 'emerald'
+//   'profile-hayley' → 'rose'
+//   anything else    → 'emerald' (the default)
+//
+// `sex` is left undefined on legacy rows — there's no honest way to
+// guess, and both surfaces it drives (period tracking, default bar)
+// are still toggleable in Settings.
+const ACCENT_TO_THEME: Record<string, Profile['theme']> = {
+  'profile-josh': 'emerald',
+  'profile-hayley': 'rose',
+};
+db.version(8)
+  .stores({
+    profiles: '&id, name',
+    exercises: '&id, name, profileId, isCustom, category',
+    routineTemplates: '&id, name, profileId, isSeed',
+    sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+    setLogs:
+      '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+    barbells: '&id, profileId, [profileId+isDefault]',
+    plateInventory: '&id, profileId',
+    bodyweightLogs: '&id, profileId, date, [profileId+date]',
+    prRecords:
+      '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+    periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  })
+  .upgrade(async (tx) => {
+    const profilesTable = tx.table('profiles');
+    const profiles = (await profilesTable.toArray()) as V7Profile[];
+    for (const p of profiles) {
+      if (typeof p.theme === 'string') continue;
+      const theme = ACCENT_TO_THEME[p.accent ?? ''] ?? 'emerald';
+      // Dexie's update spec doesn't take `field: undefined` cleanly
+      // under exactOptionalPropertyTypes; the cast is the documented
+      // escape hatch (DECISIONS milestone 7). We intentionally do
+      // *not* delete `accent` — leaving it as a harmless stale field
+      // is simpler than fighting Dexie's update typing, and nothing
+      // reads it any more.
+      await profilesTable.update(p.id, { theme } as Partial<Profile>);
     }
   });
