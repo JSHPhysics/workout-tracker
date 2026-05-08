@@ -187,6 +187,26 @@ export async function discardSession(id: string): Promise<void> {
   });
 }
 
+/** Permanently delete a *completed* session: the session row, every
+ * set log scoped to it, and every PRRecord whose sessionId points at
+ * it. Single transaction across the three tables so we can't end up
+ * with orphan PRs pointing at a missing session.
+ *
+ * Used by the History detail "Delete workout" action. Caller is
+ * responsible for confirmation (no soft-delete; the user has the
+ * JSON backup as their safety net). */
+export async function deleteSession(id: string): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.sessions, db.setLogs, db.prRecords],
+    async () => {
+      await db.setLogs.where({ sessionId: id }).delete();
+      await db.prRecords.where({ sessionId: id }).delete();
+      await db.sessions.delete(id);
+    },
+  );
+}
+
 // --- Live-plan mutators ----------------------------------------------------
 //
 // Each one reads the session, applies a pure mutation to a clone of

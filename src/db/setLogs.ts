@@ -63,6 +63,38 @@ export async function updateRpe(id: string, rpe: number | null): Promise<void> {
   await db.setLogs.update(id, { rpe: rpe ?? undefined } as Partial<SetLog>);
 }
 
+/** Patch the metric fields (weight, reps, durationSeconds, steps) on
+ * an existing set log. Used by the in-row Save action when the user
+ * has corrected a value on an already-logged set — e.g. fixing a row
+ * that saved as 0 kg by accident.
+ *
+ * NOTE: this does NOT re-run PR detection. PRs are derived state
+ * (CLAUDE.md) — recomputable from set logs whenever — but right now
+ * an edit that newly creates / invalidates a PR will leave the
+ * cached `prCount` + `PRRecord` rows stale. Acceptable v1 trade-off;
+ * a "Recompute PRs for this session" action can fix drift later. */
+export async function updateSetMetrics(
+  id: string,
+  patch: {
+    weight?: number;
+    reps?: number;
+    durationSeconds?: number;
+    steps?: number;
+  },
+): Promise<void> {
+  // Build the update spec so absent fields stay absent on the row;
+  // we don't want to write `weight: undefined` and accidentally
+  // create the field on a bodyweight-rep set, etc.
+  const spec: Partial<SetLog> = {};
+  if (patch.weight !== undefined) spec.weight = patch.weight;
+  if (patch.reps !== undefined) spec.reps = patch.reps;
+  if (patch.durationSeconds !== undefined) {
+    spec.durationSeconds = patch.durationSeconds;
+  }
+  if (patch.steps !== undefined) spec.steps = patch.steps;
+  await db.setLogs.update(id, spec);
+}
+
 /** Set or clear free-text notes on an existing set log. Empty string
  * is treated as "clear". */
 export async function updateNotes(id: string, notes: string): Promise<void> {

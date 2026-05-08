@@ -4,6 +4,7 @@ import {
   addWarmupSets,
   appendBlock,
   changeSetCount,
+  deleteSession,
   discardSession,
   finishSession,
   setBlockSkipped,
@@ -69,12 +70,15 @@ export function Session() {
   const latestBw = useLatestBodyweight(session?.profileId ?? null);
   const navigate = useNavigate();
   const dismissRest = useRestTimer((s) => s.dismiss);
-  const [busy, setBusy] = useState<'finish' | 'discard' | null>(null);
+  const [busy, setBusy] = useState<'finish' | 'discard' | 'delete' | null>(
+    null,
+  );
   const [pickerTarget, setPickerTarget] = useState<EditTarget | null>(null);
   const [celebration, setCelebration] = useState<PRAward[] | null>(null);
   const [backupPrompt, setBackupPrompt] = useState(false);
   const [wellbeingTarget, setWellbeingTarget] =
     useState<WellbeingTarget | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Pre-prompt fires once per session-load when the session is fresh
   // and no pre-ratings are recorded. Dismissed-set blocks re-prompts
@@ -240,6 +244,17 @@ export function Session() {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!id || busy) return;
+    setBusy('delete');
+    try {
+      await deleteSession(id);
+      navigate('/history');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handlePicked = async (exercise: Exercise) => {
     if (!pickerTarget) return;
     if (pickerTarget.kind === 'add') {
@@ -371,6 +386,23 @@ export function Session() {
         </button>
       )}
 
+      {sessionDone && (
+        <div className="mt-4 flex flex-col items-center gap-2 border-t border-line/60 pt-6">
+          <p className="text-center text-xs text-fg-muted">
+            Editing a logged set updates it in place. Deleting the
+            workout removes it and every set log + PR attached to it.
+          </p>
+          <button
+            type="button"
+            onClick={() => setDeleteConfirm(true)}
+            disabled={busy !== null}
+            className="rounded-full border border-line bg-surface-soft px-4 py-2 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-fg-muted hover:text-fg disabled:opacity-50"
+          >
+            Delete workout…
+          </button>
+        </div>
+      )}
+
       {!sessionDone && (
         <div
           className="fixed inset-x-0 bottom-0 z-20 border-t border-line/70 bg-bg/90 px-5 py-4 backdrop-blur"
@@ -411,6 +443,15 @@ export function Session() {
 
       {backupPrompt && profile && (
         <BackupPromptModal profile={profile} onClose={closeBackupPrompt} />
+      )}
+
+      {deleteConfirm && (
+        <DeleteWorkoutModal
+          planName={session.planName}
+          busy={busy === 'delete'}
+          onCancel={() => setDeleteConfirm(false)}
+          onConfirm={confirmDelete}
+        />
       )}
 
       {wellbeingTarget && (
@@ -985,6 +1026,78 @@ function RatingValue({
         {RATING_LABELS[idx]}
       </span>
     </span>
+  );
+}
+
+/** Confirmation dialog for "Delete workout" on the completed-session
+ * view. Uses the same bottom-sheet shape as BackupPromptModal /
+ * WellbeingPromptModal. Type-to-confirm would be overkill for one
+ * session row — JSON backup is the safety net per CLAUDE.md, plus
+ * the body text spells out exactly what gets removed. */
+function DeleteWorkoutModal({
+  planName,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  planName: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Delete workout ${planName}`}
+      className="fixed inset-0 z-40 flex items-end justify-center bg-bg/80 px-5 py-10 backdrop-blur sm:items-center"
+      onClick={onCancel}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col gap-5 rounded-3xl border border-line bg-surface p-5 shadow-lift"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex flex-col gap-1">
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
+            Delete workout
+          </span>
+          <h2 className="font-display text-2xl font-light leading-tight">
+            {planName}
+          </h2>
+          <p className="text-sm text-fg-muted">
+            This permanently removes the session, every set log
+            attached to it, and every PR earned during it. There&apos;s
+            no undo.
+          </p>
+        </header>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full px-4 py-2 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:text-fg disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-full bg-accent px-5 py-2 text-xs font-medium text-accent-fg shadow-soft transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? 'Deleting…' : 'Delete forever'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

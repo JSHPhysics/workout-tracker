@@ -4,6 +4,7 @@ import {
   logSet,
   updateNotes,
   updateRpe,
+  updateSetMetrics,
   updateSetType,
 } from '../db/setLogs';
 import { useRestTimer } from '../state/restTimer';
@@ -241,6 +242,54 @@ export function SetRow({
     }
   };
 
+  /** Save the in-flight stepper values back to an already-logged set.
+   * Used to fix a row that was logged with a wrong value (e.g. saved
+   * as 0 kg by accident). Only relevant when there's an existingLog
+   * AND the row is dirty — otherwise the buttons aren't shown.
+   *
+   * Note: doesn't re-run PR detection (CLAUDE.md describes PRs as
+   * derived state, recomputable later — see updateSetMetrics for
+   * the limitation comment). */
+  const saveChanges = async () => {
+    if (busy || !existingLog) return;
+    setBusy(true);
+    try {
+      // Build the patch matching the exercise's measurement type so
+      // we don't write irrelevant fields (e.g. weight on a
+      // bodyweight-rep set).
+      const patch: {
+        weight?: number;
+        reps?: number;
+        durationSeconds?: number;
+        steps?: number;
+      } = isWalking
+        ? {
+            ...(duration > 0 ? { durationSeconds: duration } : {}),
+            ...(steps > 0 ? { steps } : {}),
+          }
+        : isTimeBased
+          ? { durationSeconds: duration }
+          : isBodyweight
+            ? { reps }
+            : { weight, reps };
+      await updateSetMetrics(existingLog.id, patch);
+      setDirty(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Reset stepper values to whatever the existingLog says, dropping
+   * any in-flight edits. Available alongside Save when dirty. */
+  const discardChanges = () => {
+    if (!existingLog) return;
+    setWeight(existingLog.weight ?? 0);
+    setReps(existingLog.reps ?? defaultReps);
+    setDuration(existingLog.durationSeconds ?? defaultDuration);
+    setSteps(existingLog.steps ?? 0);
+    setDirty(false);
+  };
+
   const handleSetTypeChange = async (next: SetType) => {
     setSetType(next);
     if (existingLog) {
@@ -298,7 +347,7 @@ export function SetRow({
             onChange={withDirty(setWeight)}
             step={WEIGHT_STEP}
             ariaLabel="Weight in kilograms"
-            disabled={completed || blockSkipped}
+            disabled={blockSkipped}
             format={(v) => `${v % 1 === 0 ? v : v.toFixed(1)} kg`}
             width={6}
           />
@@ -309,7 +358,7 @@ export function SetRow({
             onChange={withDirty(setReps)}
             step={REPS_STEP}
             ariaLabel="Reps"
-            disabled={completed || blockSkipped}
+            disabled={blockSkipped}
             format={(v) => `${v} reps`}
             width={6}
           />
@@ -317,10 +366,10 @@ export function SetRow({
         {isTimeBased && (
           <NumberStepper
             value={duration}
-            onChange={setDuration}
+            onChange={withDirty(setDuration)}
             step={TIME_STEP}
             ariaLabel="Duration in seconds"
-            disabled={completed || blockSkipped}
+            disabled={blockSkipped}
             format={(v) => `${v}s`}
             width={5}
           />
@@ -334,7 +383,7 @@ export function SetRow({
               min={0}
               max={36000}
               ariaLabel="Duration in minutes"
-              disabled={completed || blockSkipped}
+              disabled={blockSkipped}
               format={(v) => `${Math.round(v / 60)} min`}
               width={6}
             />
@@ -345,7 +394,7 @@ export function SetRow({
               min={0}
               max={100000}
               ariaLabel="Steps"
-              disabled={completed || blockSkipped}
+              disabled={blockSkipped}
               format={(v) => `${v.toLocaleString()} steps`}
               width={9}
             />
@@ -353,7 +402,32 @@ export function SetRow({
         )}
       </div>
 
-      {completed ? (
+      {completed && dirty ? (
+        // Logged set with in-flight edits — Save commits, Discard
+        // reverts. ↺ undo (delete entire row) stays accessible from
+        // the SetExtras panel below.
+        <div className="flex flex-col items-stretch gap-1">
+          <button
+            type="button"
+            onClick={saveChanges}
+            aria-label="Save changes to this set"
+            disabled={busy || blockSkipped}
+            className="rounded-full bg-accent px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-accent-fg shadow-soft transition hover:opacity-90 disabled:opacity-50"
+            title="Save changes"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={discardChanges}
+            aria-label="Discard changes to this set"
+            disabled={busy || blockSkipped}
+            className="rounded-full px-3 py-1 text-[0.6rem] uppercase tracking-[0.14em] text-fg-muted transition hover:text-fg disabled:opacity-50"
+          >
+            Discard
+          </button>
+        </div>
+      ) : completed ? (
         <button
           type="button"
           onClick={undo}
