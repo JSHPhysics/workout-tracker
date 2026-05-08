@@ -772,6 +772,23 @@ function ExerciseGroup({
         <p className="text-xs italic text-fg-muted">{planned.notes}</p>
       )}
 
+      {/* Top-of-list warm-up affordance. Only renders when generation
+        * is currently allowed (weighted lift, no warm-ups yet, no logs
+        * yet for the slot, block not locked). Disappears as soon as
+        * warm-ups are generated, so it doesn't clutter the row layout
+        * mid-workout. */}
+      {!locked && !blockSkipped && canGenerateWarmups && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setWarmupOpen(true)}
+            className="rounded-full border border-line bg-surface-soft px-3 py-1 text-[0.65rem] font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent/40 hover:text-accent"
+          >
+            + Warm-ups
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {Array.from({ length: planned.setCount }, (_, i) => i + 1).map(
           (setNumber) => {
@@ -817,15 +834,6 @@ function ExerciseGroup({
           >
             Swap
           </button>
-          {canGenerateWarmups && (
-            <button
-              type="button"
-              onClick={() => setWarmupOpen(true)}
-              className="text-fg-muted transition hover:text-accent"
-            >
-              + Warm-ups
-            </button>
-          )}
           {canRemoveSet && (
             <button
               type="button"
