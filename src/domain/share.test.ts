@@ -157,6 +157,40 @@ describe('formatWorkoutSummary', () => {
     expect(out).toContain('Pull-ups: × 8, × 7');
   });
 
+  it('formats distance-type cardio with km + duration', () => {
+    const run: Exercise = {
+      id: 'running',
+      name: 'Running',
+      category: 'cardio',
+      primaryMuscles: ['quads'],
+      secondaryMuscles: [],
+      measurementType: 'distance',
+      defaultRestSeconds: 0,
+      perSide: false,
+      usesBarbell: false,
+      requiredEquipment: [],
+      isCustom: false,
+      profileId: null,
+    };
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [
+        set({
+          exerciseId: 'running',
+          setNumber: 1,
+          distance: 5000,
+          durationSeconds: 1500,
+        }),
+      ],
+      exercises: new Map([['running', run]]),
+      unitSystem: 'kg',
+    });
+    // 5000 m → 5.0 km. 1500s → 25min. Volume row should be omitted —
+    // weight×reps doesn't apply.
+    expect(out).toContain('Running: 5.0 km / 25min');
+    expect(out).not.toContain('volume');
+  });
+
   it('formats time_seconds in mins+secs', () => {
     const out = formatWorkoutSummary({
       session: session(),

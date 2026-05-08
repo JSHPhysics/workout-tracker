@@ -13,6 +13,8 @@ interface LogSetInput {
   reps?: number;
   durationSeconds?: number;
   steps?: number;
+  /** Distance in metres — used by `'distance'`-type cardio exercises. */
+  distance?: number;
   rpe?: number;
   notes?: string;
   side?: 'left' | 'right' | null;
@@ -35,6 +37,7 @@ export async function logSet(input: LogSetInput): Promise<string> {
       ? { durationSeconds: input.durationSeconds }
       : {}),
     ...(input.steps !== undefined ? { steps: input.steps } : {}),
+    ...(input.distance !== undefined ? { distance: input.distance } : {}),
     ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
     ...(input.notes !== undefined && input.notes.trim() !== ''
       ? { notes: input.notes.trim() }
@@ -111,6 +114,7 @@ export async function updateSetMetrics(
     reps?: number;
     durationSeconds?: number;
     steps?: number;
+    distance?: number;
   },
 ): Promise<void> {
   // Build the update spec so absent fields stay absent on the row;
@@ -123,6 +127,7 @@ export async function updateSetMetrics(
     spec.durationSeconds = patch.durationSeconds;
   }
   if (patch.steps !== undefined) spec.steps = patch.steps;
+  if (patch.distance !== undefined) spec.distance = patch.distance;
   await db.setLogs.update(id, spec);
 }
 
@@ -152,6 +157,7 @@ export interface PriorSetMetric {
   reps?: number;
   durationSeconds?: number;
   steps?: number;
+  distance?: number;
 }
 
 /** Most-recent working/AMRAP/drop/failure set for a profile + exercise,
@@ -196,6 +202,7 @@ export function useMostRecentSetMetric(
     if (latest.durationSeconds !== undefined)
       out.durationSeconds = latest.durationSeconds;
     if (latest.steps !== undefined) out.steps = latest.steps;
+    if (latest.distance !== undefined) out.distance = latest.distance;
     return out;
   }, [profileId, exerciseId, excludeSessionId]);
 }

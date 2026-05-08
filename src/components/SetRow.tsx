@@ -57,6 +57,9 @@ interface Props {
   defaultReps: number;
   defaultDuration: number;
   defaultSteps: number;
+  /** Default distance in metres — for `'distance'`-type cardio
+   * exercises. UI displays as km. */
+  defaultDistance: number;
   /** Initial set type for empty rows. The warm-up generator uses this
    * to pre-cycle the chip to "WARM-UP" without having to pre-log the
    * row (which would render it as already-ticked). Ignored once an
@@ -99,10 +102,12 @@ export function SetRow({
   defaultReps,
   defaultDuration,
   defaultSteps,
+  defaultDistance,
   defaultSetType,
 }: Props) {
   const isTimeBased = exercise.measurementType === 'time_seconds';
   const isWalking = exercise.measurementType === 'walking';
+  const isDistance = exercise.measurementType === 'distance';
   const isBodyweight =
     exercise.measurementType === 'bodyweight_reps' && !exercise.usesBarbell;
 
@@ -115,6 +120,9 @@ export function SetRow({
   );
   const [steps, setSteps] = useState<number>(
     existingLog?.steps ?? defaultSteps,
+  );
+  const [distance, setDistance] = useState<number>(
+    existingLog?.distance ?? defaultDistance,
   );
   const [setType, setSetType] = useState<SetType>(
     existingLog?.setType ?? defaultSetType ?? 'working',
@@ -147,6 +155,7 @@ export function SetRow({
       setReps(existingLog.reps ?? defaultReps);
       setDuration(existingLog.durationSeconds ?? defaultDuration);
       setSteps(existingLog.steps ?? 0);
+      setDistance(existingLog.distance ?? 0);
       setSetType(existingLog.setType);
       setRpe(existingLog.rpe ?? null);
       setNotes(existingLog.notes ?? '');
@@ -160,6 +169,7 @@ export function SetRow({
       setReps(defaultReps);
       setDuration(defaultDuration);
       setSteps(defaultSteps);
+      setDistance(defaultDistance);
       // Re-cycle the set-type chip to its default too, so a freshly
       // generated warm-up row reads as "WARM-UP" before tick. The user
       // can still cycle the chip manually before ticking; that change
@@ -174,6 +184,7 @@ export function SetRow({
     defaultReps,
     defaultDuration,
     defaultSteps,
+    defaultDistance,
     defaultSetType,
   ]);
 
@@ -200,6 +211,7 @@ export function SetRow({
       //   bodyweight_reps  → reps (+ weight from latest weigh-in if toggle on)
       //   time_seconds     → durationSeconds
       //   walking          → durationSeconds (if any) + steps (if any)
+      //   distance         → durationSeconds (if any) + distance (if any)
       const metrics = isWalking
         ? {
             ...(duration > 0 ? { durationSeconds: duration } : {}),
@@ -207,7 +219,12 @@ export function SetRow({
           }
         : isTimeBased
           ? { durationSeconds: duration }
-          : { reps, ...(isBodyweight ? bodyweightLoad : { weight }) };
+          : isDistance
+            ? {
+                ...(duration > 0 ? { durationSeconds: duration } : {}),
+                ...(distance > 0 ? { distance } : {}),
+              }
+            : { reps, ...(isBodyweight ? bodyweightLoad : { weight }) };
       await logSet({
         sessionId,
         exerciseId: exercise.id,
@@ -262,6 +279,7 @@ export function SetRow({
         reps?: number;
         durationSeconds?: number;
         steps?: number;
+        distance?: number;
       } = isWalking
         ? {
             ...(duration > 0 ? { durationSeconds: duration } : {}),
@@ -269,9 +287,14 @@ export function SetRow({
           }
         : isTimeBased
           ? { durationSeconds: duration }
-          : isBodyweight
-            ? { reps }
-            : { weight, reps };
+          : isDistance
+            ? {
+                ...(duration > 0 ? { durationSeconds: duration } : {}),
+                ...(distance > 0 ? { distance } : {}),
+              }
+            : isBodyweight
+              ? { reps }
+              : { weight, reps };
       await updateSetMetrics(existingLog.id, patch);
       setDirty(false);
     } finally {
@@ -287,6 +310,7 @@ export function SetRow({
     setReps(existingLog.reps ?? defaultReps);
     setDuration(existingLog.durationSeconds ?? defaultDuration);
     setSteps(existingLog.steps ?? 0);
+    setDistance(existingLog.distance ?? 0);
     setDirty(false);
   };
 
@@ -341,7 +365,7 @@ export function SetRow({
       </div>
 
       <div className="flex flex-1 flex-wrap items-center gap-2">
-        {!isTimeBased && !isBodyweight && !isWalking && (
+        {!isTimeBased && !isBodyweight && !isWalking && !isDistance && (
           <NumberStepper
             value={weight}
             onChange={withDirty(setWeight)}
@@ -352,7 +376,7 @@ export function SetRow({
             width={6}
           />
         )}
-        {!isTimeBased && !isWalking && (
+        {!isTimeBased && !isWalking && !isDistance && (
           <NumberStepper
             value={reps}
             onChange={withDirty(setReps)}
@@ -373,6 +397,34 @@ export function SetRow({
             format={(v) => `${v}s`}
             width={5}
           />
+        )}
+        {isDistance && (
+          <>
+            <NumberStepper
+              value={duration}
+              onChange={withDirty(setDuration)}
+              step={60}
+              min={0}
+              max={36000}
+              ariaLabel="Duration in minutes"
+              disabled={blockSkipped}
+              format={(v) => `${Math.round(v / 60)} min`}
+              width={6}
+            />
+            <NumberStepper
+              value={distance}
+              onChange={withDirty(setDistance)}
+              step={100}
+              min={0}
+              max={200000}
+              ariaLabel="Distance in metres"
+              disabled={blockSkipped}
+              // Display as km (one decimal). Stored in metres so the
+              // 100 m step keeps things integer-friendly.
+              format={(v) => `${(v / 1000).toFixed(1)} km`}
+              width={7}
+            />
+          </>
         )}
         {isWalking && (
           <>

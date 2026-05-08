@@ -370,6 +370,10 @@ export interface SetLog {
   /** Step count, currently used by walking-type exercises. Optional —
    * a walk logged purely by duration leaves this unset. */
   steps?: number;
+  /** Distance covered, in **metres**. Used by `'distance'`-type
+   * exercises (run / cycle / row / swim / elliptical). Stored in
+   * metres for cleanness; the UI converts to km (0.1 km step). */
+  distance?: number;
   rpe?: number;
   notes?: string;
   side: 'left' | 'right' | null;

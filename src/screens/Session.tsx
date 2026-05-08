@@ -740,6 +740,7 @@ function ExerciseGroup({
     reps: number;
     durationSeconds: number;
     steps: number;
+    distance: number;
   } => {
     if (setNumber <= warmupSets.length) {
       const spec = warmupSets[setNumber - 1]!;
@@ -748,12 +749,14 @@ function ExerciseGroup({
         reps: spec.reps,
         durationSeconds: 0,
         steps: 0,
+        distance: 0,
       };
     }
     let weight: number | undefined;
     let reps: number | undefined;
     let durationSeconds: number | undefined;
     let steps: number | undefined;
+    let distance: number | undefined;
     for (let n = setNumber - 1; n >= 1; n--) {
       const prior = logsByKey.get(`${blockOrder}-${exerciseOrder}-${n}`);
       if (!prior) continue;
@@ -776,11 +779,15 @@ function ExerciseGroup({
       if (steps === undefined && prior.steps !== undefined) {
         steps = prior.steps;
       }
+      if (distance === undefined && prior.distance !== undefined) {
+        distance = prior.distance;
+      }
       if (
         weight !== undefined &&
         reps !== undefined &&
         durationSeconds !== undefined &&
-        steps !== undefined
+        steps !== undefined &&
+        distance !== undefined
       ) {
         break;
       }
@@ -803,6 +810,9 @@ function ExerciseGroup({
       if (steps === undefined && priorMetric.steps !== undefined) {
         steps = priorMetric.steps;
       }
+      if (distance === undefined && priorMetric.distance !== undefined) {
+        distance = priorMetric.distance;
+      }
     }
     // Planned-range midpoints (last resort for reps + duration).
     const plannedRepsMidpoint = planned.reps
@@ -812,7 +822,8 @@ function ExerciseGroup({
       ? Math.round(
           (planned.durationSeconds.min + planned.durationSeconds.max) / 2,
         )
-      : exercise.measurementType === 'walking'
+      : exercise.measurementType === 'walking' ||
+          exercise.measurementType === 'distance'
         ? 1800
         : 0;
     return {
@@ -820,6 +831,7 @@ function ExerciseGroup({
       reps: reps ?? plannedRepsMidpoint,
       durationSeconds: durationSeconds ?? plannedDurationMidpoint,
       steps: steps ?? 0,
+      distance: distance ?? 0,
     };
   };
 
@@ -894,6 +906,7 @@ function ExerciseGroup({
                 defaultReps={defaults.reps}
                 defaultDuration={defaults.durationSeconds}
                 defaultSteps={defaults.steps}
+                defaultDistance={defaults.distance}
                 {...(isWarmupPosition
                   ? { defaultSetType: 'warmup' as const }
                   : {})}

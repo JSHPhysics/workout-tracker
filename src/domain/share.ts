@@ -186,7 +186,17 @@ function formatSingleSet(
       if (s.steps && s.steps > 0) parts.push(`${s.steps.toLocaleString()} steps`);
       return parts.length > 0 ? `${parts.join(' / ')}${star}` : `walked${star}`;
     }
-    case 'distance':
+    case 'distance': {
+      // Cardio: distance + duration. e.g. "5.0 km / 25min".
+      const parts: string[] = [];
+      if (s.distance && s.distance > 0) {
+        parts.push(`${(s.distance / 1000).toFixed(1)} km`);
+      }
+      if (s.durationSeconds && s.durationSeconds > 0) {
+        parts.push(formatSeconds(s.durationSeconds));
+      }
+      return parts.length > 0 ? `${parts.join(' / ')}${star}` : `set${star}`;
+    }
     default: {
       // Generic fallback — show whichever metric is present.
       const w = s.weight ?? 0;
