@@ -605,7 +605,7 @@ function MoodEnergyChart({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={points}
-                margin={{ top: 8, right: 4, bottom: 0, left: -16 }}
+                margin={{ top: 8, right: 8, bottom: 0, left: 4 }}
               >
                 <CartesianGrid stroke={tk('line')} strokeDasharray="3 3" />
                 <XAxis
@@ -619,9 +619,12 @@ function MoodEnergyChart({
                 <YAxis
                   domain={[1, 5]}
                   ticks={[1, 2, 3, 4, 5]}
-                  tick={{ fontSize: 9, fill: tk('fg-faint') }}
+                  // Emoji glyphs render wider than digits and need a
+                  // larger fontSize to actually show the face — at 9
+                  // they read as a coloured smudge on most renderers.
+                  tick={{ fontSize: 14, fill: tk('fg-faint') }}
                   tickFormatter={(v) => RATING_EMOJI[v - 1] ?? `${v}`}
-                  width={28}
+                  width={36}
                 />
                 <Tooltip
                   contentStyle={{
@@ -927,7 +930,7 @@ function DrillChart({
       </span>
       <div className="h-32 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -16 }}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
             <CartesianGrid stroke={tk('line')} strokeDasharray="3 3" />
             <XAxis
               dataKey="dateKey"
@@ -937,7 +940,7 @@ function DrillChart({
             />
             <YAxis
               tick={{ fontSize: 9, fill: tk('fg-faint') }}
-              width={32}
+              width={44}
               domain={['auto', 'auto']}
             />
             <Tooltip
@@ -1098,6 +1101,11 @@ function VolumeByMuscleChart({
                 dataKey="muscle"
                 width={70}
                 tick={{ fontSize: 10, fill: tk('fg-muted') }}
+                // Without this Recharts skips every other label when
+                // the chart is shorter than (count × line-height) —
+                // half the muscles end up unlabelled on a 224px-tall
+                // 15-row chart.
+                interval={0}
               />
               <Tooltip
                 contentStyle={{
@@ -1179,7 +1187,7 @@ function VolumeByRoutineChart({
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
-              margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
+              margin={{ top: 4, right: 8, bottom: 0, left: 4 }}
             >
               <CartesianGrid stroke={tk('line')} strokeDasharray="3 3" />
               <XAxis
@@ -1192,7 +1200,7 @@ function VolumeByRoutineChart({
               />
               <YAxis
                 tick={{ fontSize: 9, fill: tk('fg-faint') }}
-                width={32}
+                width={44}
                 tickFormatter={(v) => fmtNum(v)}
               />
               <Tooltip
