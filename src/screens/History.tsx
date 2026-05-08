@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
+import { useExerciseMap } from '../db/exercises';
+import { useProfile } from '../db/profiles';
 import {
   useProfileSessionSummaries,
   type SessionSummary,
 } from '../db/history';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
+import { HistoryShareButton } from '../components/HistoryShareButton';
 import { localDateKey } from '../domain/streak';
 import { sessionDurationMs } from '../domain/volume';
+import type { Exercise, UnitSystem } from '../types';
 
 const TZ =
   typeof Intl !== 'undefined'
@@ -56,6 +60,9 @@ function weekKey(iso: string): string {
 export function History() {
   const profileId = useActiveProfile((s) => s.activeProfileId);
   const summaries = useProfileSessionSummaries(profileId);
+  const profile = useProfile(profileId);
+  const exerciseMap = useExerciseMap();
+  const unitSystem: UnitSystem = profile?.unitSystem ?? 'kg';
 
   const grouped = useMemo(() => {
     if (!summaries) return [];
@@ -125,7 +132,13 @@ export function History() {
       ) : (
         <div className="flex flex-col gap-5">
           {grouped.map(({ weekStart, items }) => (
-            <WeekGroup key={weekStart} weekStart={weekStart} items={items} />
+            <WeekGroup
+              key={weekStart}
+              weekStart={weekStart}
+              items={items}
+              exerciseMap={exerciseMap ?? null}
+              unitSystem={unitSystem}
+            />
           ))}
         </div>
       )}
@@ -136,9 +149,13 @@ export function History() {
 function WeekGroup({
   weekStart,
   items,
+  exerciseMap,
+  unitSystem,
 }: {
   weekStart: string;
   items: SessionSummary[];
+  exerciseMap: Map<string, Exercise> | null;
+  unitSystem: UnitSystem;
 }) {
   const weekEnd = new Date(`${weekStart}T12:00:00Z`);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
@@ -161,7 +178,11 @@ function WeekGroup({
       <ul className="flex flex-col gap-2">
         {items.map((s) => (
           <li key={s.session.id}>
-            <SessionRow summary={s} />
+            <SessionRow
+              summary={s}
+              exerciseMap={exerciseMap}
+              unitSystem={unitSystem}
+            />
           </li>
         ))}
       </ul>
@@ -169,64 +190,84 @@ function WeekGroup({
   );
 }
 
-function SessionRow({ summary }: { summary: SessionSummary }) {
+function SessionRow({
+  summary,
+  exerciseMap,
+  unitSystem,
+}: {
+  summary: SessionSummary;
+  exerciseMap: Map<string, Exercise> | null;
+  unitSystem: UnitSystem;
+}) {
   const { session } = summary;
   const startedAt = new Date(session.startedAt);
   const dur = durationLabel(
     sessionDurationMs(session.startedAt, session.completedAt),
   );
   const inProgress = session.completedAt === null;
+  // Outer is a flex row; the Link takes the navigable bulk of it and
+  // the Share button sits as a sibling so we don't end up with a
+  // <button> inside <a> (invalid HTML).
   return (
-    <Link
-      to={`/session/${session.id}`}
-      className="group flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-soft"
-    >
-      <div className="flex w-14 shrink-0 flex-col items-start">
-        <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-fg-muted">
-          {DAY_LABEL.format(startedAt)}
-        </span>
-        <span className="font-mono text-xs tabular-nums text-fg-faint">
-          {TIME_LABEL.format(startedAt)}
-        </span>
-      </div>
-      <div className="flex flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium leading-snug text-fg">
-          {session.planName}
-        </span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted">
-          {inProgress ? (
-            <span className="text-accent">In progress</span>
-          ) : (
-            <>
-              {dur && <span className="tabular-nums">{dur}</span>}
-              {summary.totalVolume > 0 && (
-                <span className="tabular-nums">
-                  {fmtVolume(summary.totalVolume)}
-                </span>
-              )}
-              {summary.setLogCount > 0 && (
-                <span className="tabular-nums text-fg-faint">
-                  {summary.setLogCount} set{summary.setLogCount === 1 ? '' : 's'}
-                </span>
-              )}
-            </>
-          )}
-        </span>
-        {summary.prCount > 0 && (
-          <span className="mt-1 inline-flex w-max items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.14em] text-accent-fg">
-            <span aria-hidden>★</span>
-            <span>
-              {summary.prCount} PR{summary.prCount === 1 ? '' : 's'}
-            </span>
-          </span>
-        )}
-      </div>
-      <span
-        aria-hidden
-        className="self-center text-fg-faint transition group-hover:translate-x-0.5"
+    <div className="group flex items-stretch gap-1 rounded-2xl border border-line bg-surface pr-1 transition hover:-translate-y-0.5 hover:shadow-soft">
+      <Link
+        to={`/session/${session.id}`}
+        className="flex flex-1 items-start gap-3 px-4 py-3"
       >
-        →
-      </span>
-    </Link>
+        <div className="flex w-14 shrink-0 flex-col items-start">
+          <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-fg-muted">
+            {DAY_LABEL.format(startedAt)}
+          </span>
+          <span className="font-mono text-xs tabular-nums text-fg-faint">
+            {TIME_LABEL.format(startedAt)}
+          </span>
+        </div>
+        <div className="flex flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium leading-snug text-fg">
+            {session.planName}
+          </span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted">
+            {inProgress ? (
+              <span className="text-accent">In progress</span>
+            ) : (
+              <>
+                {dur && <span className="tabular-nums">{dur}</span>}
+                {summary.totalVolume > 0 && (
+                  <span className="tabular-nums">
+                    {fmtVolume(summary.totalVolume)}
+                  </span>
+                )}
+                {summary.setLogCount > 0 && (
+                  <span className="tabular-nums text-fg-faint">
+                    {summary.setLogCount} set{summary.setLogCount === 1 ? '' : 's'}
+                  </span>
+                )}
+              </>
+            )}
+          </span>
+          {summary.prCount > 0 && (
+            <span className="mt-1 inline-flex w-max items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.14em] text-accent-fg">
+              <span aria-hidden>★</span>
+              <span>
+                {summary.prCount} PR{summary.prCount === 1 ? '' : 's'}
+              </span>
+            </span>
+          )}
+        </div>
+        <span
+          aria-hidden
+          className="self-center text-fg-faint transition group-hover:translate-x-0.5"
+        >
+          →
+        </span>
+      </Link>
+      {!inProgress && exerciseMap !== null && (
+        <HistoryShareButton
+          session={session}
+          exercises={exerciseMap}
+          unitSystem={unitSystem}
+        />
+      )}
+    </div>
   );
 }
