@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getCompletionCount } from '../db/sessions';
 import { formatWorkoutSummary } from '../domain/share';
 import { shareText, type ShareOutcome } from '../lib/shareText';
 import type { Exercise, Session, SetLog, UnitSystem } from '../types';
@@ -30,11 +31,16 @@ export function ShareWorkoutButton({
     if (busy) return;
     setBusy(true);
     setOutcome('idle');
+    const completionNumber = await getCompletionCount(
+      session.profileId,
+      session,
+    );
     const text = formatWorkoutSummary({
       session,
       setLogs,
       exercises,
       unitSystem,
+      completionNumber,
       // BASE_URL is the deployed public path; combined with origin
       // it's the URL friends can tap to open the app themselves.
       appUrl:

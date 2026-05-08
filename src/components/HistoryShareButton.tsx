@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { db } from '../db/db';
+import { getCompletionCount } from '../db/sessions';
 import { formatWorkoutSummary } from '../domain/share';
 import { shareText, type ShareOutcome } from '../lib/shareText';
 import type { Exercise, Session, UnitSystem } from '../types';
@@ -30,12 +31,16 @@ export function HistoryShareButton({ session, exercises, unitSystem }: Props) {
     setBusy(true);
     setOutcome('idle');
     try {
-      const setLogs = await db.setLogs.where({ sessionId: session.id }).toArray();
+      const [setLogs, completionNumber] = await Promise.all([
+        db.setLogs.where({ sessionId: session.id }).toArray(),
+        getCompletionCount(session.profileId, session),
+      ]);
       const text = formatWorkoutSummary({
         session,
         setLogs,
         exercises,
         unitSystem,
+        completionNumber,
         appUrl:
           typeof window !== 'undefined'
             ? `${window.location.origin}${import.meta.env.BASE_URL}`

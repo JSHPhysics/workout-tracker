@@ -22,11 +22,20 @@ export interface ShareInput {
   /** Optional public URL of the deployed app, appended as a footer.
    * Pass `null` (default) to omit. */
   appUrl?: string | null;
+  /** When set, prepends a "Just completed my Nth …" headline. Pass
+   * `null` (default) for free sessions or any other case where the
+   * count isn't meaningful. Computed by callers via
+   * `getCompletionCount` in `db/sessions.ts` — that helper counts how
+   * many completed sessions on this profile share the templateRef
+   * routine + day, so the number persists across mid-workout edits
+   * to the live plan. */
+  completionNumber?: number | null;
 }
 
 /** Format a finished session as a sharable plain-text summary. */
 export function formatWorkoutSummary(input: ShareInput): string {
-  const { session, setLogs, exercises, unitSystem, appUrl } = input;
+  const { session, setLogs, exercises, unitSystem, appUrl, completionNumber } =
+    input;
 
   const lines: string[] = [];
 
@@ -37,7 +46,19 @@ export function formatWorkoutSummary(input: ShareInput): string {
     month: 'short',
     year: 'numeric',
   });
-  lines.push(`${session.planName} · ${dateStr}`);
+  if (typeof completionNumber === 'number' && completionNumber >= 1) {
+    // Prose-y headline matching how people phrase completion-count
+    // milestones in chat. The full planName goes in (warts and all —
+    // "Routine · W1 D1 · Workout A" — friends understand).
+    lines.push(
+      completionNumber === 1
+        ? `Just completed ${session.planName} for the first time`
+        : `Just completed my ${ordinal(completionNumber)} ${session.planName}`,
+    );
+    lines.push(dateStr);
+  } else {
+    lines.push(`${session.planName} · ${dateStr}`);
+  }
 
   // --- Stats line -----------------------------------------------------
   const stats: string[] = [];
@@ -211,6 +232,22 @@ function totalVolume(setLogs: readonly SetLog[]): number {
     if (w > 0 && r > 0) total += w * r;
   }
   return total;
+}
+
+/** English ordinal: 1 → "1st", 2 → "2nd", 11 → "11th", 21 → "21st",
+ * 112 → "112th", etc. Negative / zero: returned as-is with no suffix
+ * (caller is expected to gate on `>= 1`, so this is just defensive). */
+export function ordinal(n: number): string {
+  if (n < 1) return `${n}`;
+  // 11/12/13 (and 111/112/113, etc.) always take "th" regardless of
+  // the trailing digit.
+  const lastTwo = n % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${n}th`;
+  const last = n % 10;
+  if (last === 1) return `${n}st`;
+  if (last === 2) return `${n}nd`;
+  if (last === 3) return `${n}rd`;
+  return `${n}th`;
 }
 
 function formatVolume(v: number, unitSystem: UnitSystem): string {

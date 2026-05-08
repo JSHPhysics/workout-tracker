@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatWorkoutSummary } from './share';
+import { formatWorkoutSummary, ordinal } from './share';
 import type { Exercise, Session, SetLog } from '../types';
 
 // --- Test fixtures ----------------------------------------------------
@@ -258,6 +258,45 @@ describe('formatWorkoutSummary', () => {
     expect(out).toContain('Workout Tracker · https://example.com/workouts');
   });
 
+  it('prepends "for the first time" headline when completionNumber is 1', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [set({ weight: 60, reps: 8 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+      completionNumber: 1,
+    });
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('Just completed Push Day A for the first time');
+    // Date moves to its own line below the headline.
+    expect(lines[1]).toBe('8 May 2026');
+  });
+
+  it('prepends ordinal headline when completionNumber > 1', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [set({ weight: 60, reps: 8 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+      completionNumber: 42,
+    });
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('Just completed my 42nd Push Day A');
+    expect(lines[1]).toBe('8 May 2026');
+  });
+
+  it('falls back to existing terse header when completionNumber is null', () => {
+    const out = formatWorkoutSummary({
+      session: session(),
+      setLogs: [set({ weight: 60, reps: 8 })],
+      exercises: new Map([['bench', bench()]]),
+      unitSystem: 'kg',
+      completionNumber: null,
+    });
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('Push Day A · 8 May 2026');
+  });
+
   it('uses singular "PR" for one PR and plural "PRs" for many', () => {
     const single = formatWorkoutSummary({
       session: session({ prCount: 1 }),
@@ -274,5 +313,36 @@ describe('formatWorkoutSummary', () => {
     expect(single).toContain('1 PR ✨');
     expect(single).not.toContain('1 PRs');
     expect(multi).toContain('3 PRs ✨');
+  });
+});
+
+describe('ordinal', () => {
+  it('handles the basic 1/2/3 → st/nd/rd', () => {
+    expect(ordinal(1)).toBe('1st');
+    expect(ordinal(2)).toBe('2nd');
+    expect(ordinal(3)).toBe('3rd');
+  });
+  it('uses "th" for 4 through 10', () => {
+    expect(ordinal(4)).toBe('4th');
+    expect(ordinal(7)).toBe('7th');
+    expect(ordinal(10)).toBe('10th');
+  });
+  it('treats 11/12/13 as exceptions ("th", not st/nd/rd)', () => {
+    expect(ordinal(11)).toBe('11th');
+    expect(ordinal(12)).toBe('12th');
+    expect(ordinal(13)).toBe('13th');
+  });
+  it('handles the 21/22/23 family ("st"/"nd"/"rd" again)', () => {
+    expect(ordinal(21)).toBe('21st');
+    expect(ordinal(22)).toBe('22nd');
+    expect(ordinal(23)).toBe('23rd');
+    expect(ordinal(24)).toBe('24th');
+    expect(ordinal(42)).toBe('42nd');
+    expect(ordinal(101)).toBe('101st');
+  });
+  it('treats 111/112/113 as exceptions too', () => {
+    expect(ordinal(111)).toBe('111th');
+    expect(ordinal(112)).toBe('112th');
+    expect(ordinal(113)).toBe('113th');
   });
 });

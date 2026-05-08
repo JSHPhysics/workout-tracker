@@ -307,6 +307,46 @@ export async function addWarmupSets(
   });
 }
 
+// --- Completion count -----------------------------------------------------
+
+/** How many completed sessions on this profile share this session's
+ * routine + day-within-routine — i.e. "this is your Nth time doing
+ * Workout A from StrongLifts 5×5". Used in the share-text headline.
+ *
+ * Identity is keyed off `templateRef.routineId + dayNumber` (NOT the
+ * planName), so the count survives:
+ *   • renaming the routine
+ *   • mid-workout edits to the live plan (swap exercises, add sets,
+ *     skip blocks) — `templateRef` is set at session creation and
+ *     never modified after
+ *   • forking / customising the template before starting
+ *
+ * For free sessions (no templateRef), there's no shared identity to
+ * group by, so we return null. The share formatter omits the
+ * completion-count headline in that case.
+ *
+ * Includes the passed-in session in the count when it's completed —
+ * the count is "this is your Nth", not "you've previously done it
+ * N times". An in-progress session is excluded; the share button is
+ * gated on completion anyway. */
+export async function getCompletionCount(
+  profileId: string,
+  session: Session,
+): Promise<number | null> {
+  if (!session.templateRef) return null;
+  const { routineId, dayNumber } = session.templateRef;
+  const all = await db.sessions.where({ profileId }).toArray();
+  let count = 0;
+  for (const s of all) {
+    if (s.completedAt === null) continue;
+    if (!s.templateRef) continue;
+    if (s.templateRef.routineId !== routineId) continue;
+    if (s.templateRef.dayNumber !== dayNumber) continue;
+    count += 1;
+  }
+  return count;
+}
+
 // --- Queries ---------------------------------------------------------------
 
 export function useSession(id: string | undefined): Session | null | undefined {
