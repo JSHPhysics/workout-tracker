@@ -213,14 +213,21 @@ export async function discardSession(id: string): Promise<void> {
  *
  * Used by the History detail "Delete workout" action. Caller is
  * responsible for confirmation (no soft-delete; the user has the
- * JSON backup as their safety net). */
+ * JSON backup as their safety net).
+ *
+ * Note: `prRecords` is not indexed by sessionId (the schema only
+ * indexes profileId + exerciseId + type). `where({sessionId})` would
+ * throw SchemaError and silently abort the whole transaction —
+ * historically that's why this helper looked like it was working but
+ * left every row in place. Use `.filter()` for the non-indexed lookup
+ * instead; full scan is fine at household scale. */
 export async function deleteSession(id: string): Promise<void> {
   await db.transaction(
     'rw',
     [db.sessions, db.setLogs, db.prRecords],
     async () => {
       await db.setLogs.where({ sessionId: id }).delete();
-      await db.prRecords.where({ sessionId: id }).delete();
+      await db.prRecords.filter((r) => r.sessionId === id).delete();
       await db.sessions.delete(id);
     },
   );

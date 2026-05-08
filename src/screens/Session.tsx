@@ -265,7 +265,17 @@ export function Session() {
     try {
       await deleteSession(id);
       navigate('/history');
+    } catch (err) {
+      // Surface to the console so a real failure (Dexie schema, etc.)
+      // doesn't disappear silently the way the v1 sessionId-not-indexed
+      // bug did. The user sees the modal stay open — they can retry
+      // or cancel.
+      console.error('Failed to delete workout:', err);
+      setBusy(null);
     } finally {
+      // Only clear busy on success too — the navigate above will
+      // unmount this component, so the state update is dropped.
+      // Belt-and-braces though.
       setBusy(null);
     }
   };
