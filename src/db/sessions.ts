@@ -23,6 +23,10 @@ interface CreateSessionInput {
   /** Initial plan. Snapshot from a routine day for templated sessions;
    * `[]` for free sessions. */
   livePlan: Block[];
+  /** ISO 8601 datetime to use as `startedAt`. Defaults to now.
+   * Used by the History "Log past workout" flow to backfill a workout
+   * the user did but didn't log on the day. */
+  startedAt?: string;
 }
 
 export async function createSession(input: CreateSessionInput): Promise<string> {
@@ -31,7 +35,7 @@ export async function createSession(input: CreateSessionInput): Promise<string> 
     id,
     profileId: input.profileId,
     ...(input.templateRef ? { templateRef: input.templateRef } : {}),
-    startedAt: new Date().toISOString(),
+    startedAt: input.startedAt ?? new Date().toISOString(),
     completedAt: null,
     planName: input.planName,
     prCount: 0,
@@ -72,15 +76,30 @@ export async function setPostWellbeing(
 /** Finish a session: stamp completedAt, detect any PRs across the
  * session's set logs, persist `PRRecord` rows, annotate each `SetLog`
  * with its `prTypes`, and cache `prCount` on the session. Returns the
- * award list so callers can fire the celebration UI. */
+ * award list so callers can fire the celebration UI.
+ *
+ * Retrospective sessions (started > 12h ago — the History "Log past
+ * workout" path) get `completedAt = startedAt + 60min` instead of
+ * `now`, so the timeline + duration display in History reflect the
+ * date the workout actually happened rather than when the user
+ * happened to log it. */
+const RETRO_THRESHOLD_MS = 12 * 60 * 60 * 1000;
+const RETRO_DEFAULT_DURATION_MS = 60 * 60 * 1000;
+
 export async function finishSession(id: string): Promise<PRAward[]> {
-  const completedAt = new Date().toISOString();
   return db.transaction(
     'rw',
     [db.sessions, db.setLogs, db.prRecords],
     async () => {
       const session = await db.sessions.get(id);
       if (!session) return [];
+
+      const startedAtMs = Date.parse(session.startedAt);
+      const nowMs = Date.now();
+      const completedAt =
+        nowMs - startedAtMs > RETRO_THRESHOLD_MS
+          ? new Date(startedAtMs + RETRO_DEFAULT_DURATION_MS).toISOString()
+          : new Date(nowMs).toISOString();
 
       // Sort by the planned-position triple so PR detection sees sets in
       // the order they were performed within each exercise. Dexie's

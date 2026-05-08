@@ -59,6 +59,15 @@ type WellbeingTarget = 'before' | 'after' | 'edit';
 const PRE_PROMPT_DISMISSED = new Set<string>();
 const POST_PROMPT_DISMISSED = new Set<string>();
 
+/** Threshold for treating a session as "retrospective" — i.e. the
+ * user is back-filling a workout from a previous day rather than
+ * lifting right now. Mirrors the constant in db/sessions.ts. We use
+ * it to suppress the wellbeing prompts in that flow. */
+const RETRO_THRESHOLD_MS = 12 * 60 * 60 * 1000;
+function isRetrospectiveSession(startedAt: string): boolean {
+  return Date.now() - Date.parse(startedAt) > RETRO_THRESHOLD_MS;
+}
+
 export function Session() {
   const { id } = useParams<{ id: string }>();
   const session = useSession(id);
@@ -82,11 +91,14 @@ export function Session() {
 
   // Pre-prompt fires once per session-load when the session is fresh
   // and no pre-ratings are recorded. Dismissed-set blocks re-prompts
-  // after Skip (until full app reload).
+  // after Skip (until full app reload). Skipped entirely for
+  // retrospective sessions — the user is back-filling history, not
+  // about to lift, so a "how do you feel?" prompt makes no sense.
   useEffect(() => {
     if (!session) return;
     if (session.completedAt !== null) return;
     if (PRE_PROMPT_DISMISSED.has(session.id)) return;
+    if (isRetrospectiveSession(session.startedAt)) return;
     if (
       session.moodBefore !== undefined ||
       session.energyBefore !== undefined
@@ -145,13 +157,16 @@ export function Session() {
     if (!session) return;
     // Skip the post-wellbeing prompt if the user has already filled
     // both ratings in (e.g. they finish from the read-only view, or
-    // re-finish a session somehow) or if this session id was dismissed.
+    // re-finish a session somehow), if this session id was dismissed,
+    // or if the session is retrospective (back-filling from history —
+    // the user isn't actually post-workout).
     const alreadyRated =
       session.moodAfter !== undefined && session.energyAfter !== undefined;
     if (
       !alreadyRated &&
       !POST_PROMPT_DISMISSED.has(session.id) &&
-      !session.completedAt
+      !session.completedAt &&
+      !isRetrospectiveSession(session.startedAt)
     ) {
       // Note: we read session.completedAt here from the live snapshot;
       // by the time `finishSession` resolves Dexie has stamped it, but

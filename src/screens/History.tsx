@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useExerciseMap } from '../db/exercises';
@@ -9,6 +9,7 @@ import {
 } from '../db/history';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
 import { HistoryShareButton } from '../components/HistoryShareButton';
+import { LogPastWorkoutModal } from '../components/LogPastWorkoutModal';
 import { localDateKey } from '../domain/streak';
 import { sessionDurationMs } from '../domain/volume';
 import type { Exercise, UnitSystem } from '../types';
@@ -63,6 +64,7 @@ export function History() {
   const profile = useProfile(profileId);
   const exerciseMap = useExerciseMap();
   const unitSystem: UnitSystem = profile?.unitSystem ?? 'kg';
+  const [logPastOpen, setLogPastOpen] = useState(false);
 
   const grouped = useMemo(() => {
     if (!summaries) return [];
@@ -110,6 +112,17 @@ export function History() {
         <CalendarHeatmap completedAt={completedAt} timeZone={TZ} />
       </article>
 
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setLogPastOpen(true)}
+          disabled={!profileId}
+          className="rounded-full border border-dashed border-line-strong bg-surface-soft/40 px-4 py-2 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          + Log past workout
+        </button>
+      </div>
+
       {summaries === undefined ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -141,6 +154,13 @@ export function History() {
             />
           ))}
         </div>
+      )}
+
+      {logPastOpen && profileId && (
+        <LogPastWorkoutModal
+          profileId={profileId}
+          onClose={() => setLogPastOpen(false)}
+        />
       )}
     </section>
   );
