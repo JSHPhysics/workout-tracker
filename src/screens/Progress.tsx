@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bar,
@@ -19,6 +19,7 @@ import { useExerciseMap } from '../db/exercises';
 import { useBodyweightLogs } from '../db/bodyweight';
 import { usePeriodLogs } from '../db/period';
 import { useProfile } from '../db/profiles';
+import { ChartShareButton } from '../components/ChartShareButton';
 import { CycleChip } from '../components/CycleChip';
 import { cyclePhaseAt } from '../domain/cycle';
 import {
@@ -239,17 +240,33 @@ function BodySection({
   }
   return (
     <div className="flex flex-col gap-4">
-      <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
-        <header className="flex items-baseline justify-between">
-          <h2 className="font-display text-base font-medium">Bodyweight trend</h2>
+      <BodyweightArticle logs={logs} />
+      <BodyweightLogger profileId={profileId} logs={logs} />
+    </div>
+  );
+}
+
+function BodyweightArticle({ logs }: { logs: NonNullable<ReturnType<typeof useBodyweightLogs>> }) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex items-baseline justify-between gap-2">
+        <h2 className="font-display text-base font-medium">Bodyweight trend</h2>
+        <div className="flex items-center gap-1">
           <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
             7-day rolling avg
           </span>
-        </header>
+          <ChartShareButton
+            containerRef={chartRef}
+            filename="bodyweight-trend.png"
+            title="Bodyweight trend"
+          />
+        </div>
+      </header>
+      <div ref={chartRef}>
         <BodyweightChart logs={logs} />
-      </article>
-      <BodyweightLogger profileId={profileId} logs={logs} />
-    </div>
+      </div>
+    </article>
   );
 }
 
@@ -524,6 +541,7 @@ function MoodEnergyChart({
   const profile = useProfile(profileId);
   const periodLogs = usePeriodLogs(profileId);
   const periodTrackingOn = profile?.periodTrackingEnabled ?? false;
+  const chartRef = useRef<HTMLDivElement | null>(null);
 
   const { points, snapshots } = useMemo(() => {
     if (!summaries) return { points: null, snapshots: null };
@@ -572,11 +590,18 @@ function MoodEnergyChart({
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
-      <header className="flex items-baseline justify-between">
+      <header className="flex items-baseline justify-between gap-2">
         <h2 className="font-display text-base font-medium">Mood & energy</h2>
-        <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
-          {RANGE_LABEL[range]}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+            {RANGE_LABEL[range]}
+          </span>
+          <ChartShareButton
+            containerRef={chartRef}
+            filename={`mood-energy-${range}.png`}
+            title="Mood & energy"
+          />
+        </div>
       </header>
 
       {points === null ? (
@@ -601,7 +626,7 @@ function MoodEnergyChart({
               negativeEmoji="🥱"
             />
           </div>
-          <div className="h-40 w-full">
+          <div ref={chartRef} className="h-40 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={points}
@@ -923,12 +948,20 @@ function DrillChart({
   data: DrillPoint[];
   dataKey: 'e1rm' | 'topWeight' | 'volume';
 }) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-fg-muted">
-        {title}
-      </span>
-      <div className="h-32 w-full">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-fg-muted">
+          {title}
+        </span>
+        <ChartShareButton
+          containerRef={chartRef}
+          filename={`${dataKey}.png`}
+          title={title}
+        />
+      </div>
+      <div ref={chartRef} className="h-32 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
             <CartesianGrid stroke={tk('line')} strokeDasharray="3 3" />
@@ -1051,6 +1084,7 @@ function VolumeByMuscleChart({
   exerciseMap: Map<string, Exercise> | undefined;
   range: Range;
 }) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
   const data = useMemo(() => {
     if (!summaries || !exerciseMap) return null;
     const now = new Date();
@@ -1070,11 +1104,18 @@ function VolumeByMuscleChart({
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
-      <header className="flex items-baseline justify-between">
+      <header className="flex items-baseline justify-between gap-2">
         <h2 className="font-display text-base font-medium">Volume by muscle</h2>
-        <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
-          Primary 100% · Secondary 50%
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+            Primary 100% · Secondary 50%
+          </span>
+          <ChartShareButton
+            containerRef={chartRef}
+            filename={`volume-by-muscle-${range}.png`}
+            title="Volume by muscle"
+          />
+        </div>
       </header>
       {!data ? (
         <div className="h-48 animate-pulse rounded-xl bg-surface-soft" />
@@ -1083,7 +1124,7 @@ function VolumeByMuscleChart({
           No working volume in this window.
         </p>
       ) : (
-        <div className="h-56 w-full">
+        <div ref={chartRef} className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
@@ -1138,6 +1179,7 @@ function VolumeByRoutineChart({
   summaries: SessionSummary[] | undefined;
   range: Range;
 }) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
   const { data, labels } = useMemo(() => {
     if (!summaries) return { data: null, labels: [] as string[] };
     const now = new Date();
@@ -1170,11 +1212,18 @@ function VolumeByRoutineChart({
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
-      <header className="flex items-baseline justify-between">
+      <header className="flex items-baseline justify-between gap-2">
         <h2 className="font-display text-base font-medium">Volume by routine</h2>
-        <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
-          Stacked weekly
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-faint">
+            Stacked weekly
+          </span>
+          <ChartShareButton
+            containerRef={chartRef}
+            filename={`volume-by-routine-${range}.png`}
+            title="Volume by routine"
+          />
+        </div>
       </header>
       {!data ? (
         <div className="h-48 animate-pulse rounded-xl bg-surface-soft" />
@@ -1183,7 +1232,7 @@ function VolumeByRoutineChart({
           No completed sessions in this window.
         </p>
       ) : (
-        <div className="h-56 w-full">
+        <div ref={chartRef} className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
