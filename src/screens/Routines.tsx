@@ -1,5 +1,10 @@
 import { Link } from 'react-router-dom';
+import { useActiveProfile } from '../state/activeProfile';
 import { useRoutines } from '../db/routines';
+import {
+  toggleFavouriteRoutine,
+  useFavouriteRoutineIds,
+} from '../db/favouriteRoutines';
 import type { RoutineTemplate } from '../types';
 
 function summarise(routine: RoutineTemplate): string {
@@ -12,7 +17,9 @@ function summarise(routine: RoutineTemplate): string {
 }
 
 export function Routines() {
+  const profileId = useActiveProfile((s) => s.activeProfileId);
   const routines = useRoutines();
+  const favourites = useFavouriteRoutineIds(profileId);
 
   return (
     <section className="mx-auto flex max-w-md flex-col gap-6">
@@ -52,37 +59,78 @@ export function Routines() {
         <ul className="flex flex-col gap-3">
           {routines.map((routine) => (
             <li key={routine.id}>
-              <Link
-                to={`/routines/${routine.id}`}
-                className="group block rounded-2xl border border-line bg-surface p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-col gap-1">
-                    {routine.isSeed && (
-                      <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-accent">
-                        Built-in
-                      </span>
-                    )}
-                    <h2 className="font-display text-xl font-medium leading-snug tracking-tight">
-                      {routine.name}
-                    </h2>
-                    <p className="text-xs text-fg-muted">{summarise(routine)}</p>
-                  </div>
-                  <span
-                    aria-hidden
-                    className="text-fg-faint transition group-hover:translate-x-0.5"
-                  >
-                    →
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-                  {routine.description}
-                </p>
-              </Link>
+              <RoutineCard
+                routine={routine}
+                profileId={profileId}
+                favourited={favourites?.has(routine.id) ?? false}
+              />
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function RoutineCard({
+  routine,
+  profileId,
+  favourited,
+}: {
+  routine: RoutineTemplate;
+  profileId: string | null;
+  favourited: boolean;
+}) {
+  const onToggleFavourite = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!profileId) return;
+    void toggleFavouriteRoutine(profileId, routine.id, !favourited);
+  };
+  // Outer is a flex row, NOT a Link, so the favourite button can sit
+  // as a sibling of the navigable area without ending up as
+  // <button> inside <a> (invalid HTML).
+  return (
+    <div className="group relative flex items-stretch rounded-2xl border border-line bg-surface shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift">
+      <Link
+        to={`/routines/${routine.id}`}
+        className="flex flex-1 flex-col p-5 pr-14"
+      >
+        <div className="flex flex-col gap-1">
+          {routine.isSeed && (
+            <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-accent">
+              Built-in
+            </span>
+          )}
+          <h2 className="font-display text-xl font-medium leading-snug tracking-tight">
+            {routine.name}
+          </h2>
+          <p className="text-xs text-fg-muted">{summarise(routine)}</p>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-fg-muted">
+          {routine.description}
+        </p>
+      </Link>
+      <button
+        type="button"
+        onClick={onToggleFavourite}
+        disabled={!profileId}
+        aria-label={
+          favourited ? `Unfavourite ${routine.name}` : `Favourite ${routine.name}`
+        }
+        aria-pressed={favourited}
+        title={favourited ? 'Unfavourite' : 'Favourite'}
+        className={[
+          'absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full transition',
+          favourited
+            ? 'text-accent hover:bg-surface-soft'
+            : 'text-fg-faint hover:bg-surface-soft hover:text-accent',
+        ].join(' ')}
+      >
+        <span aria-hidden className="text-base leading-none">
+          {favourited ? '★' : '☆'}
+        </span>
+      </button>
+    </div>
   );
 }

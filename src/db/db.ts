@@ -4,6 +4,7 @@ import type {
   BodyweightLog,
   Exercise,
   ExerciseRestPref,
+  FavouriteRoutine,
   PRRecord,
   PeriodLog,
   PlateInventory,
@@ -76,6 +77,7 @@ export type WorkoutDB = Dexie & {
   prRecords: EntityTable<PRRecord, 'id'>;
   periodLogs: EntityTable<PeriodLog, 'id'>;
   exerciseRestPrefs: EntityTable<ExerciseRestPref, 'id'>;
+  favouriteRoutines: EntityTable<FavouriteRoutine, 'id'>;
 };
 
 // Names index entries:
@@ -410,4 +412,25 @@ db.version(10).stores({
   // legacy profiles is correct (the resolution chain falls through to
   // exercise.defaultRestSeconds / 90s as before).
   exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+});
+
+// v11 — Per-(profile, routine) favourite flag. Same synthetic-id
+// pattern as exerciseRestPrefs / favourites are per-profile so seed
+// routines can be starred independently by household members. No
+// upgrader — additive.
+db.version(11).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+  favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
 });

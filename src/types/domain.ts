@@ -397,6 +397,20 @@ export interface PRRecord {
   setLogId: string;
 }
 
+// --- Favourite routines -----------------------------------------------------
+
+/** Marks a routine as a favourite for a specific profile, so it sorts
+ * first on the Today picker. Per-profile rather than on `RoutineTemplate`
+ * itself because seed routines are shared — one user starring StrongLifts
+ * shouldn't affect another household member's view. */
+export interface FavouriteRoutine {
+  /** Synthetic id `${profileId}-${routineId}` so put-as-upsert works. */
+  id: string;
+  profileId: string;
+  routineId: string;
+  createdAt: string;
+}
+
 // --- Per-exercise rest preferences ------------------------------------------
 
 /** Persisted rest-timer length for a specific (profile, exercise) pair.

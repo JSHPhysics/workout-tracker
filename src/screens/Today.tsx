@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useActiveSession, createSession } from '../db/sessions';
 import { useRoutines } from '../db/routines';
+import { useFavouriteRoutineIds } from '../db/favouriteRoutines';
 import { useProfile } from '../db/profiles';
 import { useCyclePhaseToday } from '../db/period';
 import { CycleChip } from '../components/CycleChip';
@@ -22,8 +23,22 @@ export function Today() {
   const profileId = useActiveProfile((s) => s.activeProfileId);
   const activeSession = useActiveSession(profileId);
   const routines = useRoutines();
+  const favourites = useFavouriteRoutineIds(profileId);
   const profile = useProfile(profileId);
   const cycleToday = useCyclePhaseToday(profileId);
+
+  // Favourites sort first (alphabetical within each group). Stable
+  // ordering — favourites toggle reactively without the list jumping.
+  const sortedRoutines = useMemo(() => {
+    if (!routines) return undefined;
+    const favSet = favourites ?? new Set<string>();
+    return [...routines].sort((a, b) => {
+      const aFav = favSet.has(a.id) ? 0 : 1;
+      const bFav = favSet.has(b.id) ? 0 : 1;
+      if (aFav !== bFav) return aFav - bFav;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+  }, [routines, favourites]);
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -105,29 +120,43 @@ export function Today() {
         <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-fg-muted">
           {activeSession ? 'Or start fresh' : 'Pick a routine'}
         </span>
-        {routines === undefined ? (
+        {sortedRoutines === undefined ? (
           <div
             aria-hidden
             className="h-20 animate-pulse rounded-2xl border border-line bg-surface-soft"
           />
         ) : (
           <ul className="flex flex-col gap-2">
-            {routines.map((r) => (
-              <li key={r.id}>
-                <Link
-                  to={`/routines/${r.id}`}
-                  className="group flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-soft"
-                >
-                  <span className="font-medium text-fg">{r.name}</span>
-                  <span
-                    aria-hidden
-                    className="text-fg-faint transition group-hover:translate-x-0.5"
+            {sortedRoutines.map((r) => {
+              const fav = favourites?.has(r.id) ?? false;
+              return (
+                <li key={r.id}>
+                  <Link
+                    to={`/routines/${r.id}`}
+                    className="group flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-soft"
                   >
-                    →
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span className="flex items-center gap-2">
+                      {fav && (
+                        <span
+                          aria-label="Favourite"
+                          title="Favourite"
+                          className="text-sm leading-none text-accent"
+                        >
+                          ★
+                        </span>
+                      )}
+                      <span className="font-medium text-fg">{r.name}</span>
+                    </span>
+                    <span
+                      aria-hidden
+                      className="text-fg-faint transition group-hover:translate-x-0.5"
+                    >
+                      →
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
