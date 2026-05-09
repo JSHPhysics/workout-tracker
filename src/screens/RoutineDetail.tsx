@@ -92,7 +92,7 @@ export function RoutineDetail() {
               disabled={forking}
               className="rounded-full border border-line px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
             >
-              {forking ? '…' : routine.isSeed ? 'Fork & edit' : 'Edit'}
+              {forking ? '…' : routine.isSeed ? 'Copy & edit' : 'Edit'}
             </button>
           </div>
         </div>
