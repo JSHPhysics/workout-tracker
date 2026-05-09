@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useExerciseMap } from '../db/exercises';
+import { useRoutines } from '../db/routines';
 import { ExerciseDiagram } from '../components/ExerciseDiagram';
-import type { Exercise } from '../types';
+import type { Exercise, RoutineTemplate } from '../types';
 
 // --- Persisted review state -----------------------------------------------
 
@@ -138,6 +139,7 @@ function matchesFilter(
 
 export function ExerciseReview() {
   const exerciseMap = useExerciseMap();
+  const routines = useRoutines();
   const [state, setState] = useState<ReviewState>(readReviewState);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -160,6 +162,16 @@ export function ExerciseReview() {
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
       );
   }, [exerciseMap]);
+
+  // Reverse index of which routines (and which workout days within
+  // them) reference each exercise. Built once across all routines so
+  // every card lookup is O(1). Days are deduped per (routine, label)
+  // so multi-week routines that repeat A/B/C tags don't show "A, A,
+  // A, A" on every card.
+  const routineUsageByExercise = useMemo(
+    () => buildRoutineUsageIndex(routines ?? []),
+    [routines],
+  );
 
   const filtered = useMemo(
     () => exercises.filter((ex) => matchesFilter(ex, state, filter, search)),
@@ -394,6 +406,7 @@ export function ExerciseReview() {
             <ExerciseCard
               exercise={ex}
               cells={state[ex.id] ?? {}}
+              routineUsage={routineUsageByExercise.get(ex.id) ?? []}
               onVerdict={(piece, next) => setVerdict(ex.id, piece, next)}
               onSuggestion={(piece, value) =>
                 setSuggestion(ex.id, piece, value)
@@ -404,6 +417,64 @@ export function ExerciseReview() {
       </ul>
     </section>
   );
+}
+
+// --- Routine usage index --------------------------------------------------
+
+interface RoutineUsage {
+  routineId: string;
+  routineName: string;
+  isSeed: boolean;
+  /** Workout-day labels within this routine that reference the
+   * exercise — e.g. ['A', 'B'] for StrongLifts when the lift is on
+   * both days. Falls back to "Day N" when no workoutLabel is set.
+   * Deduped so multi-week routines don't show "A, A, A, A". */
+  dayLabels: string[];
+}
+
+function buildRoutineUsageIndex(
+  routines: readonly RoutineTemplate[],
+): Map<string, RoutineUsage[]> {
+  const out = new Map<string, RoutineUsage[]>();
+  for (const routine of routines) {
+    // Per (exercise, day-label) tracking inside this routine — lets
+    // us add to dayLabels without duplicates across weeks.
+    const perExerciseDays = new Map<string, Set<string>>();
+    for (const week of routine.weeks) {
+      for (const day of week.days) {
+        if (day.kind !== 'workout') continue;
+        const dayLabel = day.workoutLabel ?? `Day ${day.dayNumber}`;
+        for (const block of day.blocks) {
+          for (const planned of block.exercises) {
+            const set = perExerciseDays.get(planned.exerciseId) ?? new Set();
+            set.add(dayLabel);
+            perExerciseDays.set(planned.exerciseId, set);
+          }
+        }
+      }
+    }
+    for (const [exerciseId, daySet] of perExerciseDays) {
+      const usage: RoutineUsage = {
+        routineId: routine.id,
+        routineName: routine.name,
+        isSeed: routine.isSeed,
+        dayLabels: Array.from(daySet).sort(),
+      };
+      const arr = out.get(exerciseId) ?? [];
+      arr.push(usage);
+      out.set(exerciseId, arr);
+    }
+  }
+  // Sort routines by name within each exercise's list so the
+  // pills render in stable order.
+  for (const arr of out.values()) {
+    arr.sort((a, b) =>
+      a.routineName.localeCompare(b.routineName, undefined, {
+        sensitivity: 'base',
+      }),
+    );
+  }
+  return out;
 }
 
 function currentValueFor(ex: Exercise, piece: Piece): string | null {
@@ -424,11 +495,13 @@ function currentValueFor(ex: Exercise, piece: Piece): string | null {
 function ExerciseCard({
   exercise,
   cells,
+  routineUsage,
   onVerdict,
   onSuggestion,
 }: {
   exercise: Exercise;
   cells: Partial<Record<Piece, PieceState>>;
+  routineUsage: readonly RoutineUsage[];
   onVerdict: (piece: Piece, next: Verdict | null) => void;
   onSuggestion: (piece: Piece, value: string) => void;
 }) {
@@ -440,6 +513,8 @@ function ExerciseCard({
         </h2>
         <code className="text-[0.6rem] text-fg-faint">{exercise.id}</code>
       </header>
+
+      <RoutineUsagePills usage={routineUsage} />
 
       <PieceRow
         label="Diagram"
@@ -514,6 +589,40 @@ function ExerciseCard({
         )}
       </PieceRow>
     </article>
+  );
+}
+
+/** Small horizontal row of pills showing every routine that
+ * references the exercise, with the workout-day labels rolled up
+ * (so "StrongLifts · A, B" not two pills). Helps the reviewer
+ * trace a seeded exercise back to its source material when
+ * sourcing better instructions / images. */
+function RoutineUsagePills({ usage }: { usage: readonly RoutineUsage[] }) {
+  if (usage.length === 0) {
+    return (
+      <p className="text-[0.6rem] italic text-fg-faint">
+        Not referenced by any seeded routine.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {usage.map((u) => (
+        <span
+          key={u.routineId}
+          title={`${u.routineName} · workouts ${u.dayLabels.join(', ')}`}
+          className={[
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem]',
+            u.isSeed
+              ? 'border-accent/30 bg-accent-soft text-accent'
+              : 'border-line bg-surface-soft text-fg-muted',
+          ].join(' ')}
+        >
+          <span className="font-medium">{u.routineName}</span>
+          <span className="text-fg-muted/80">· {u.dayLabels.join(', ')}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
