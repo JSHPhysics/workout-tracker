@@ -8,7 +8,7 @@ import type { Exercise, RoutineTemplate } from '../types';
 // --- Persisted review state -----------------------------------------------
 
 type Verdict = 'approved' | 'rejected';
-type Piece = 'diagram' | 'demoUrl' | 'instructions';
+type Piece = 'name' | 'diagram' | 'demoUrl' | 'instructions';
 
 interface PieceState {
   verdict?: Verdict;
@@ -65,7 +65,12 @@ function readReviewState(): ReviewState {
 }
 
 function isPiece(s: string): s is Piece {
-  return s === 'diagram' || s === 'demoUrl' || s === 'instructions';
+  return (
+    s === 'name' ||
+    s === 'diagram' ||
+    s === 'demoUrl' ||
+    s === 'instructions'
+  );
 }
 
 function writeReviewState(state: ReviewState): { ok: boolean; reason?: string } {
@@ -101,8 +106,14 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 // Every exercise has a slot for each — even if absent, the user
-// can mark it "needs work" by rejecting.
-const PIECES: readonly Piece[] = ['diagram', 'demoUrl', 'instructions'];
+// can mark it "needs work" by rejecting. Order matters: rendered
+// top-to-bottom on each card.
+const PIECES: readonly Piece[] = [
+  'name',
+  'diagram',
+  'demoUrl',
+  'instructions',
+];
 
 function matchesFilter(
   ex: Exercise,
@@ -479,6 +490,8 @@ function buildRoutineUsageIndex(
 
 function currentValueFor(ex: Exercise, piece: Piece): string | null {
   switch (piece) {
+    case 'name':
+      return ex.name;
     case 'diagram':
       return ex.diagram ?? null;
     case 'demoUrl':
@@ -515,6 +528,17 @@ function ExerciseCard({
       </header>
 
       <RoutineUsagePills usage={routineUsage} />
+
+      <PieceRow
+        label="Name"
+        cell={cells.name}
+        onVerdict={(v) => onVerdict('name', v)}
+        onSuggestion={(v) => onSuggestion('name', v)}
+        suggestionPlaceholder="Type a better name and I'll rename in the next import"
+        suggestionKind="line"
+      >
+        <span className="text-sm font-medium text-fg">{exercise.name}</span>
+      </PieceRow>
 
       <PieceRow
         label="Diagram"
