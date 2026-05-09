@@ -17,12 +17,15 @@ export type {
   PRRecord,
   PRType,
   PeriodLog,
+  PlanMode,
+  PlanStatus,
   PlannedExercise,
   PlateInventory,
   PlateInventoryEntry,
   Profile,
   RepRange,
   RoutineTemplate,
+  ScheduledSession,
   Session,
   SessionTemplateRef,
   SetLog,
@@ -31,6 +34,7 @@ export type {
   Theme,
   UnitSystem,
   WeekTemplate,
+  WorkoutPlan,
 } from './domain';
 export {
   CYCLE_PHASES,

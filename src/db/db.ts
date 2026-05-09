@@ -5,6 +5,8 @@ import type {
   Exercise,
   ExerciseRestPref,
   FavouriteRoutine,
+  ScheduledSession,
+  WorkoutPlan,
   PRRecord,
   PeriodLog,
   PlateInventory,
@@ -78,6 +80,8 @@ export type WorkoutDB = Dexie & {
   periodLogs: EntityTable<PeriodLog, 'id'>;
   exerciseRestPrefs: EntityTable<ExerciseRestPref, 'id'>;
   favouriteRoutines: EntityTable<FavouriteRoutine, 'id'>;
+  workoutPlans: EntityTable<WorkoutPlan, 'id'>;
+  scheduledSessions: EntityTable<ScheduledSession, 'id'>;
 };
 
 // Names index entries:
@@ -433,4 +437,39 @@ db.version(11).stores({
   periodLogs: '&id, profileId, startDate, [profileId+startDate]',
   exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
   favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
+});
+
+// v12 — Workout plans + scheduled sessions.
+//
+// `workoutPlans` is the user's *intent* (which routine, mode,
+// frequency, preferred weekdays). `scheduledSessions` is the
+// *materialisation* — one row per planned workout, on a concrete
+// date. The Today screen reads scheduledSessions; bumps mutate
+// plannedDate + optionally cascade to subsequent rows.
+//
+// Index choices:
+//   - workoutPlans: routineId for "is this routine in any plan?"
+//     UI checks; status for filtering active plans.
+//   - scheduledSessions: [profileId+plannedDate] is the hot path
+//     (Today: "what's scheduled today for this profile?").
+//     [profileId+status] supports "what's pending and overdue?".
+//     planId supports cascade-bump lookups.
+db.version(12).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+  favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
+  workoutPlans: '&id, profileId, routineId, status, [profileId+status]',
+  scheduledSessions:
+    '&id, profileId, planId, plannedDate, status, [profileId+plannedDate], [profileId+status]',
 });
