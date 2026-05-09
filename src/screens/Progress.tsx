@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { useActiveProfile } from '../state/activeProfile';
 import { useExerciseMap } from '../db/exercises';
+import { useMuscleVolumeOverrides } from '../db/muscleVolumeOverrides';
 import { useBodyweightLogs } from '../db/bodyweight';
 import { usePeriodLogs } from '../db/period';
 import { useProfile } from '../db/profiles';
@@ -170,6 +171,7 @@ export function Progress() {
             summaries={summaries}
             exerciseMap={exerciseMap}
             range={range}
+            profileId={profileId}
           />
 
           <VolumeByRoutineChart summaries={summaries} range={range} />
@@ -1079,12 +1081,15 @@ function VolumeByMuscleChart({
   summaries,
   exerciseMap,
   range,
+  profileId,
 }: {
   summaries: SessionSummary[] | undefined;
   exerciseMap: Map<string, Exercise> | undefined;
   range: Range;
+  profileId: string | null;
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null);
+  const overrides = useMuscleVolumeOverrides(profileId);
   const data = useMemo(() => {
     if (!summaries || !exerciseMap) return null;
     const now = new Date();
@@ -1094,13 +1099,18 @@ function VolumeByMuscleChart({
       if (!withinRange(s.session.startedAt, days, now)) continue;
       for (const l of s.setLogs) allLogs.push(l);
     }
-    const byMuscle = volumeByMuscle(allLogs, exerciseMap);
+    const byMuscle = volumeByMuscle(
+      allLogs,
+      exerciseMap,
+      undefined,
+      overrides,
+    );
     const arr = Array.from(byMuscle.entries())
       .map(([muscle, volume]) => ({ muscle: muscle as MuscleGroup, volume }))
       .filter((x) => x.volume > 0)
       .sort((a, b) => b.volume - a.volume);
     return arr;
-  }, [summaries, exerciseMap, range]);
+  }, [summaries, exerciseMap, range, overrides]);
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">

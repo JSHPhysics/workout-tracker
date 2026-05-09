@@ -14,6 +14,31 @@ import type { Exercise, MuscleGroup, SetLog } from '../types';
 
 export const SECONDARY_MUSCLE_WEIGHT = 0.5;
 
+/** Map of muscle → multiplier. 1.0 means "100% of this set's volume
+ * goes to this muscle"; 0.5 is the conventional secondary-muscle
+ * weight; values above 1.0 are valid but unusual.
+ *
+ * Used by per-exercise overrides — when the user wants this app's
+ * apportionment to differ from the seeded primary/secondary tags. */
+export type MuscleWeights = Partial<Record<MuscleGroup, number>>;
+
+/** The default weighting derived from an exercise's primary +
+ * secondary muscle tags. Used both as the starting point for the
+ * editor UI and as the fallback when no override exists. */
+export function defaultMuscleWeights(
+  ex: Exercise,
+  secondaryWeight: number = SECONDARY_MUSCLE_WEIGHT,
+): MuscleWeights {
+  const out: MuscleWeights = {};
+  for (const m of ex.primaryMuscles) out[m] = 1.0;
+  for (const m of ex.secondaryMuscles) {
+    // If a muscle is in both lists somehow, primary wins (don't
+    // demote it).
+    if (out[m] === undefined) out[m] = secondaryWeight;
+  }
+  return out;
+}
+
 /** Return true when this set should contribute to volume aggregates. */
 export function countsTowardVolume(s: SetLog): boolean {
   return s.setType !== 'warmup';
@@ -36,13 +61,19 @@ export function totalVolume(setLogs: readonly SetLog[]): number {
 }
 
 /** Apportion the volume of each set across the exercise's muscles.
- * Primary muscles get 100%, secondary muscles get 50% (configurable
- * via the optional `secondaryWeight` arg). Returns a Map keyed by
- * MuscleGroup, summing across all sets in the input. */
+ * By default primary muscles get 100% credit and secondary muscles
+ * get 50% (`secondaryWeight`).
+ *
+ * `overrides` lets the user pin a custom weighting per (exercise)
+ * id — when an override exists, it replaces the primary/secondary
+ * default for that exercise entirely. Lets users adjust the chart
+ * without changing the exercise tags themselves. Pass undefined or
+ * an empty map to keep the seeded behaviour. */
 export function volumeByMuscle(
   setLogs: readonly SetLog[],
   exerciseMap: ReadonlyMap<string, Exercise>,
   secondaryWeight: number = SECONDARY_MUSCLE_WEIGHT,
+  overrides?: ReadonlyMap<string, MuscleWeights>,
 ): Map<MuscleGroup, number> {
   const out = new Map<MuscleGroup, number>();
   for (const s of setLogs) {
@@ -50,11 +81,20 @@ export function volumeByMuscle(
     if (v === 0) continue;
     const ex = exerciseMap.get(s.exerciseId);
     if (!ex) continue;
-    for (const m of ex.primaryMuscles) {
-      out.set(m, (out.get(m) ?? 0) + v);
-    }
-    for (const m of ex.secondaryMuscles) {
-      out.set(m, (out.get(m) ?? 0) + v * secondaryWeight);
+    const override = overrides?.get(ex.id);
+    if (override) {
+      for (const [muscle, weight] of Object.entries(override)) {
+        if (typeof weight !== 'number' || weight === 0) continue;
+        const m = muscle as MuscleGroup;
+        out.set(m, (out.get(m) ?? 0) + v * weight);
+      }
+    } else {
+      for (const m of ex.primaryMuscles) {
+        out.set(m, (out.get(m) ?? 0) + v);
+      }
+      for (const m of ex.secondaryMuscles) {
+        out.set(m, (out.get(m) ?? 0) + v * secondaryWeight);
+      }
     }
   }
   return out;

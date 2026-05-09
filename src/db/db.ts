@@ -5,6 +5,7 @@ import type {
   Exercise,
   ExerciseRestPref,
   FavouriteRoutine,
+  MuscleVolumeOverride,
   ScheduledSession,
   WorkoutPlan,
   PRRecord,
@@ -82,6 +83,7 @@ export type WorkoutDB = Dexie & {
   favouriteRoutines: EntityTable<FavouriteRoutine, 'id'>;
   workoutPlans: EntityTable<WorkoutPlan, 'id'>;
   scheduledSessions: EntityTable<ScheduledSession, 'id'>;
+  muscleVolumeOverrides: EntityTable<MuscleVolumeOverride, 'id'>;
 };
 
 // Names index entries:
@@ -472,4 +474,31 @@ db.version(12).stores({
   workoutPlans: '&id, profileId, routineId, status, [profileId+status]',
   scheduledSessions:
     '&id, profileId, planId, plannedDate, status, [profileId+plannedDate], [profileId+status]',
+});
+
+// v13 — Per-(profile, exercise) muscle volume overrides. Lets users
+// disagree with the seeded primary/secondary tags about how a given
+// exercise's volume should apportion to their charts. Same synthetic-
+// id pattern as the other per-pair tables; weights live in a JSON
+// column. No upgrader — additive.
+db.version(13).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+  favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
+  workoutPlans: '&id, profileId, routineId, status, [profileId+status]',
+  scheduledSessions:
+    '&id, profileId, planId, plannedDate, status, [profileId+plannedDate], [profileId+status]',
+  muscleVolumeOverrides:
+    '&id, profileId, exerciseId, [profileId+exerciseId]',
 });

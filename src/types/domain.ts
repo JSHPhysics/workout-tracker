@@ -462,6 +462,24 @@ export interface ScheduledSession {
   createdAt: string;
 }
 
+// --- Per-exercise muscle volume override ------------------------------------
+
+/** User-defined override of how an exercise's volume is apportioned
+ * to muscle groups. When present, the volume-by-muscle chart uses
+ * `weights` directly instead of the seeded primary/secondary tags.
+ *
+ * `weights` is muscle → multiplier (1.0 = 100%, 0.5 = 50%, etc.).
+ * Per-(profile, exercise) so household members can disagree about
+ * what their own training counts as. */
+export interface MuscleVolumeOverride {
+  /** Synthetic id `${profileId}-${exerciseId}` so put-as-upsert works. */
+  id: string;
+  profileId: string;
+  exerciseId: string;
+  weights: Record<string, number>;
+  updatedAt: string;
+}
+
 // --- Favourite routines -----------------------------------------------------
 
 /** Marks a routine as a favourite for a specific profile, so it sorts

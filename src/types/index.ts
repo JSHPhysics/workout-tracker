@@ -14,6 +14,7 @@ export type {
   FavouriteRoutine,
   MeasurementType,
   MuscleGroup,
+  MuscleVolumeOverride,
   PRRecord,
   PRType,
   PeriodLog,

@@ -197,7 +197,33 @@ function Preferences() {
       </article>
       <WarmupPercentagesCard profile={profile} />
       <EquipmentPicker profile={profile} />
+      <AdvancedFeaturesCard />
     </section>
+  );
+}
+
+/** Link card to /settings/advanced. Sits at the bottom of
+ * Preferences — visible to everyone but framed as power-user
+ * territory so casual users skip it. */
+function AdvancedFeaturesCard() {
+  return (
+    <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h3 className="font-display text-base font-medium">
+          Advanced features
+        </h3>
+        <p className="text-xs text-fg-muted">
+          Per-exercise volume weightings and other knobs most users
+          don&apos;t need to touch.
+        </p>
+      </header>
+      <Link
+        to="/settings/advanced"
+        className="self-start rounded-full border border-line bg-surface-soft px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent/40 hover:text-accent"
+      >
+        Open advanced →
+      </Link>
+    </article>
   );
 }
 

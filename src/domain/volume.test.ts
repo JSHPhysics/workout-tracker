@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   SECONDARY_MUSCLE_WEIGHT,
+  defaultMuscleWeights,
   sessionDurationMs,
   setVolume,
   totalVolume,
   volumeByMuscle,
 } from './volume';
+import type { MuscleWeights } from './volume';
 import type { Exercise, MuscleGroup, SetLog } from '../types';
 
 function s(partial: Partial<SetLog> & Pick<SetLog, 'id' | 'exerciseId'>): SetLog {
@@ -133,6 +135,93 @@ describe('volumeByMuscle', () => {
 
   it('exposes the default secondary weight as 0.5', () => {
     expect(SECONDARY_MUSCLE_WEIGHT).toBe(0.5);
+  });
+
+  it('honours per-exercise overrides instead of the seeded apportionment', () => {
+    // Squat: default = quads 100%, glutes 50%. Override flips it
+    // entirely — pretend the user wants this lift to count 100% to
+    // glutes and only 25% to quads.
+    const squat = exercise('sq', ['quads'], ['glutes']);
+    const overrides: ReadonlyMap<string, MuscleWeights> = new Map([
+      ['sq', { glutes: 1.0, quads: 0.25 }],
+    ]);
+    const out = volumeByMuscle(
+      [s({ id: 'a', exerciseId: 'sq', weight: 100, reps: 5 })],
+      new Map([['sq', squat]]),
+      undefined,
+      overrides,
+    );
+    // 100×5 = 500 total volume. glutes = 500, quads = 125.
+    expect(out.get('glutes')).toBeCloseTo(500);
+    expect(out.get('quads')).toBeCloseTo(125);
+  });
+
+  it('falls back to default apportionment for exercises NOT in the override map', () => {
+    const squat = exercise('sq', ['quads'], ['glutes']);
+    const dl = exercise('dl', ['hamstrings'], ['glutes', 'back']);
+    const overrides: ReadonlyMap<string, MuscleWeights> = new Map([
+      // Only override squat; deadlift uses defaults.
+      ['sq', { glutes: 1.0 }],
+    ]);
+    const out = volumeByMuscle(
+      [
+        s({ id: 'a', exerciseId: 'sq', weight: 100, reps: 5 }),
+        s({ id: 'b', exerciseId: 'dl', weight: 120, reps: 5 }),
+      ],
+      new Map([
+        ['sq', squat],
+        ['dl', dl],
+      ]),
+      undefined,
+      overrides,
+    );
+    // squat 500 → glutes 500, quads 0 (override drops it)
+    // dl   600 → hamstrings 600, glutes 300, back 300 (default)
+    expect(out.get('glutes')).toBeCloseTo(800); // 500 + 300
+    expect(out.get('hamstrings')).toBeCloseTo(600);
+    expect(out.get('quads')).toBeUndefined();
+    expect(out.get('back')).toBeCloseTo(300);
+  });
+
+  it('skips muscles whose override weight is zero', () => {
+    const squat = exercise('sq', ['quads'], ['glutes']);
+    const overrides: ReadonlyMap<string, MuscleWeights> = new Map([
+      ['sq', { quads: 1.0, glutes: 0 }],
+    ]);
+    const out = volumeByMuscle(
+      [s({ id: 'a', exerciseId: 'sq', weight: 100, reps: 5 })],
+      new Map([['sq', squat]]),
+      undefined,
+      overrides,
+    );
+    expect(out.get('quads')).toBeCloseTo(500);
+    expect(out.get('glutes')).toBeUndefined();
+  });
+});
+
+describe('defaultMuscleWeights', () => {
+  it('builds a map from primary 1.0 + secondary 0.5', () => {
+    const ex = exercise('sq', ['quads', 'glutes'], ['hamstrings', 'core']);
+    const w = defaultMuscleWeights(ex);
+    expect(w).toEqual({
+      quads: 1.0,
+      glutes: 1.0,
+      hamstrings: 0.5,
+      core: 0.5,
+    });
+  });
+
+  it('keeps primary credit when a muscle is in both lists', () => {
+    const ex = exercise('odd', ['glutes'], ['glutes']);
+    expect(defaultMuscleWeights(ex)).toEqual({ glutes: 1.0 });
+  });
+
+  it('honours a custom secondaryWeight argument', () => {
+    const ex = exercise('sq', ['quads'], ['glutes']);
+    expect(defaultMuscleWeights(ex, 0.75)).toEqual({
+      quads: 1.0,
+      glutes: 0.75,
+    });
   });
 });
 
