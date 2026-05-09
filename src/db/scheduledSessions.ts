@@ -5,7 +5,12 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
-import { addDays, formatLocalDate, parseLocalDate } from '../domain/planScheduler';
+import {
+  addDays,
+  formatLocalDate,
+  generateSchedule,
+  parseLocalDate,
+} from '../domain/planScheduler';
 import type { ScheduledSession } from '../types';
 
 function todayLocal(): string {
@@ -60,15 +65,83 @@ export function useScheduledSession(
 
 /** Mark a scheduled row as completed and link the live Session that
  * was started for it. Idempotent — re-running on an already-linked
- * row replaces sessionId with the latest. */
+ * row replaces sessionId with the latest.
+ *
+ * For rotation plans, this also rolls the schedule horizon forward:
+ * if there are fewer than `ROTATION_REFILL_THRESHOLD` pending rows
+ * left in the plan after completion, generate the next batch out to
+ * 12 weeks past the latest existing date. Avoids the rotation
+ * "running out" silently. Finite plans don't refill — when their
+ * last row completes the plan is done. */
+const ROTATION_REFILL_THRESHOLD = 6;
+const ROTATION_REFILL_HORIZON_WEEKS = 12;
 export async function markScheduledCompleted(
   scheduledId: string,
   sessionId: string,
 ): Promise<void> {
-  await db.scheduledSessions.update(scheduledId, {
-    status: 'completed',
-    sessionId,
-  });
+  await db.transaction(
+    'rw',
+    [db.scheduledSessions, db.workoutPlans, db.routineTemplates],
+    async () => {
+      const row = await db.scheduledSessions.get(scheduledId);
+      if (!row) return;
+      await db.scheduledSessions.update(scheduledId, {
+        status: 'completed',
+        sessionId,
+      });
+
+      // Roll-forward only applies to rotation plans.
+      if (!row.planId) return;
+      const plan = await db.workoutPlans.get(row.planId);
+      if (!plan || plan.mode !== 'rotation' || plan.status !== 'active') return;
+
+      const remaining = await db.scheduledSessions
+        .where({ planId: plan.id })
+        .filter((r) => r.status === 'pending')
+        .count();
+      if (remaining >= ROTATION_REFILL_THRESHOLD) return;
+
+      const routine = await db.routineTemplates.get(plan.routineId);
+      if (!routine) return;
+
+      // Find the latest plannedDate in the existing schedule so we
+      // know where to seed the next batch. We start one day after
+      // that date so we don't double-up.
+      const allRows = await db.scheduledSessions
+        .where({ planId: plan.id })
+        .toArray();
+      let latest = plan.startDate;
+      for (const r of allRows) {
+        if (r.plannedDate > latest) latest = r.plannedDate;
+      }
+      const nextStart = formatLocalDate(addDays(parseLocalDate(latest), 1));
+
+      const slots = generateSchedule({
+        startDate: nextStart,
+        mode: 'rotation',
+        frequencyPerWeek: plan.frequencyPerWeek,
+        preferredWeekdays: plan.preferredWeekdays,
+        routine,
+        horizonWeeks: ROTATION_REFILL_HORIZON_WEEKS,
+      });
+
+      const now = new Date().toISOString();
+      const newRows: ScheduledSession[] = slots.map((s) => ({
+        id: crypto.randomUUID(),
+        profileId: plan.profileId,
+        planId: plan.id,
+        plannedDate: s.plannedDate,
+        routineId: plan.routineId,
+        weekNumber: s.weekNumber,
+        dayNumber: s.dayNumber,
+        status: 'pending',
+        createdAt: now,
+      }));
+      if (newRows.length > 0) {
+        await db.scheduledSessions.bulkAdd(newRows);
+      }
+    },
+  );
 }
 
 /** Mark a scheduled row as skipped — user explicitly chose to drop

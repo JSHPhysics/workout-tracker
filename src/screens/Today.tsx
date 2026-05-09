@@ -13,6 +13,7 @@ import {
 } from '../db/scheduledSessions';
 import { useProfile } from '../db/profiles';
 import { useCyclePhaseToday } from '../db/period';
+import { BumpScheduledModal } from '../components/BumpScheduledModal';
 import { CycleChip } from '../components/CycleChip';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { PeriodLogModal } from '../components/PeriodLogModal';
@@ -60,6 +61,7 @@ export function Today() {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  const [bumpTarget, setBumpTarget] = useState<ScheduledSession | null>(null);
   const periodTrackingOn = profile?.periodTrackingEnabled ?? false;
 
   const startFree = async () => {
@@ -185,6 +187,7 @@ export function Today() {
           rows={todayScheduled}
           routineById={routineById}
           onStart={startScheduled}
+          onBump={(s) => setBumpTarget(s)}
           starting={starting}
         />
       )}
@@ -301,6 +304,14 @@ export function Today() {
           onClose={() => setPeriodModalOpen(false)}
         />
       )}
+
+      {bumpTarget && (
+        <BumpScheduledModal
+          session={bumpTarget}
+          label={planSessionLabel(bumpTarget, routineById)}
+          onClose={() => setBumpTarget(null)}
+        />
+      )}
     </section>
   );
 }
@@ -325,11 +336,13 @@ function TodayPlanSection({
   rows,
   routineById,
   onStart,
+  onBump,
   starting,
 }: {
   rows: ScheduledSession[];
   routineById: Map<string, RoutineTemplate>;
   onStart: (s: ScheduledSession) => void;
+  onBump: (s: ScheduledSession) => void;
   starting: boolean;
 }) {
   return (
@@ -340,27 +353,47 @@ function TodayPlanSection({
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
           <li key={row.id}>
-            <button
-              type="button"
-              onClick={() => onStart(row)}
-              disabled={starting}
-              className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:opacity-50"
-            >
-              <span className="flex flex-col">
-                <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-accent">
-                  Scheduled
-                </span>
-                <span className="font-medium leading-snug text-fg">
-                  {planSessionLabel(row, routineById)}
-                </span>
-              </span>
-              <span
-                aria-hidden
-                className="text-accent transition group-hover:translate-x-0.5"
+            {/* Outer flex row holds the start button (claims most of
+              * the space) and a separate Bump button so neither is
+              * nested inside the other. */}
+            <div className="group flex items-stretch gap-1 rounded-2xl border border-accent/40 bg-accent-soft pr-1 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift">
+              <button
+                type="button"
+                onClick={() => onStart(row)}
+                disabled={starting}
+                className="flex flex-1 items-center justify-between gap-3 rounded-l-2xl px-4 py-3 text-left transition disabled:opacity-50"
               >
-                →
-              </span>
-            </button>
+                <span className="flex flex-col">
+                  <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em] text-accent">
+                    Scheduled
+                  </span>
+                  <span className="font-medium leading-snug text-fg">
+                    {planSessionLabel(row, routineById)}
+                  </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="text-accent transition group-hover:translate-x-0.5"
+                >
+                  →
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBump(row);
+                }}
+                aria-label="Bump this session"
+                title="Bump this session"
+                className="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full text-accent transition hover:bg-accent/10"
+              >
+                <span aria-hidden className="text-base leading-none">
+                  ↦
+                </span>
+              </button>
+            </div>
           </li>
         ))}
       </ul>

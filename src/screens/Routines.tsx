@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
 import { useRoutines } from '../db/routines';
@@ -5,6 +6,7 @@ import {
   toggleFavouriteRoutine,
   useFavouriteRoutineIds,
 } from '../db/favouriteRoutines';
+import { PlansSection } from '../components/PlansSection';
 import type { RoutineTemplate } from '../types';
 
 function summarise(routine: RoutineTemplate): string {
@@ -20,6 +22,11 @@ export function Routines() {
   const profileId = useActiveProfile((s) => s.activeProfileId);
   const routines = useRoutines();
   const favourites = useFavouriteRoutineIds(profileId);
+  const routineById = useMemo(() => {
+    const m = new Map<string, RoutineTemplate>();
+    for (const r of routines ?? []) m.set(r.id, r);
+    return m;
+  }, [routines]);
 
   return (
     <section className="mx-auto flex max-w-md flex-col gap-6">
@@ -42,6 +49,10 @@ export function Routines() {
           Built-in templates and your own. Tap one to browse.
         </p>
       </header>
+
+      {profileId && (
+        <PlansSection profileId={profileId} routineById={routineById} />
+      )}
 
       {routines === undefined ? (
         <div className="space-y-3">
