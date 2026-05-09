@@ -21,7 +21,7 @@ import {
   setWarmupPercentages,
   useProfile,
 } from '../db/profiles';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { backupFilename, buildBackup, markBackedUp } from '../db/backup';
 import { saveBackup } from '../lib/backupIo';
 import {
@@ -825,6 +825,19 @@ function DeveloperTools() {
         {message && (
           <p className="text-xs text-fg-muted">{message}</p>
         )}
+      </article>
+      <article className="flex flex-col gap-3 rounded-2xl border border-dashed border-line-strong bg-surface-soft/30 p-4">
+        <p className="text-sm text-fg-muted">
+          Audit every seeded exercise's diagram, demo link, and
+          instructions. Approve / reject each piece; export the
+          rejection list for replacement drafting.
+        </p>
+        <Link
+          to="/exercises/review"
+          className="self-start rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg transition hover:opacity-90"
+        >
+          Open exercise review →
+        </Link>
       </article>
     </section>
   );
