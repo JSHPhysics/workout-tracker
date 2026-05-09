@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { forkRoutine, useRoutine } from '../db/routines';
 import { useExerciseMap } from '../db/exercises';
 import { createSession } from '../db/sessions';
+import { StartPlanModal } from '../components/StartPlanModal';
 import { useActiveProfile } from '../state/activeProfile';
 import type {
   Block,
@@ -21,6 +22,7 @@ export function RoutineDetail() {
   const navigate = useNavigate();
   const [activeWeek, setActiveWeek] = useState<number>(1);
   const [forking, setForking] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
 
   const handleEdit = async () => {
     if (!routine) return;
@@ -83,18 +85,29 @@ export function RoutineDetail() {
           <h1 className="font-display text-3xl font-light leading-[1.1] tracking-tight">
             {routine.name}
           </h1>
-          <button
-            type="button"
-            onClick={handleEdit}
-            disabled={forking}
-            className="rounded-full border border-line px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
-          >
-            {forking ? '…' : routine.isSeed ? 'Fork & edit' : 'Edit'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleEdit}
+              disabled={forking}
+              className="rounded-full border border-line px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              {forking ? '…' : routine.isSeed ? 'Fork & edit' : 'Edit'}
+            </button>
+          </div>
         </div>
         <p className="text-sm leading-relaxed text-fg-muted">
           {routine.description}
         </p>
+        {profileId && (
+          <button
+            type="button"
+            onClick={() => setPlanModalOpen(true)}
+            className="mt-1 self-start rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg shadow-soft transition hover:opacity-90"
+          >
+            Start as a plan →
+          </button>
+        )}
       </header>
 
       <WeekSwitcher
@@ -108,6 +121,14 @@ export function RoutineDetail() {
           routine={routine}
           week={week}
           exerciseMap={exerciseMap}
+        />
+      )}
+
+      {planModalOpen && profileId && (
+        <StartPlanModal
+          profileId={profileId}
+          routine={routine}
+          onClose={() => setPlanModalOpen(false)}
         />
       )}
     </section>
