@@ -23,6 +23,11 @@ import {
   SPOTEBI_OVERRIDES,
   spotebiSlugFromName,
 } from '../seed/exerciseEnrichment';
+import {
+  ALIASED_CANONICAL_NEW,
+  EXERCISE_ALIASES,
+  resolveExerciseId,
+} from '../seed/exerciseAliases';
 import { SEED_PROFILES } from '../seed/profiles';
 import { SEED_BARBELLS, SEED_PLATE_INVENTORY } from '../seed/equipment';
 import { db } from './db';
@@ -71,12 +76,21 @@ function mergeExerciseSources(): ExerciseSeed[] {
   const merged = new Map<string, ExerciseSeed>();
 
   for (const e of STRONG_CURVES_EXERCISES) {
+    // Drop entries that have been aliased away — the canonical
+    // (either an existing id elsewhere in the seed or a brand-new
+    // one in ALIASED_CANONICAL_NEW) is what survives.
+    if (EXERCISE_ALIASES[e.id]) continue;
     merged.set(e.id, { ...e });
   }
   // Hand-written wins over the generated seed for any duplicate id —
   // enables us to author a richer entry for a lift the spreadsheet
   // also defines.
   for (const e of [...COMPOUND_EXERCISES, ...STRETCHING_EXERCISES]) {
+    merged.set(e.id, { ...e });
+  }
+  // Brand-new canonical entries created by the alias map (e.g. the
+  // consolidated "Back Extension / Reverse Hyper").
+  for (const e of ALIASED_CANONICAL_NEW) {
     merged.set(e.id, { ...e });
   }
 
@@ -160,10 +174,25 @@ export async function ensureSeedLoaded(): Promise<void> {
       await db.exercises.bulkAdd(seededExercises);
 
       // 3. Routine templates — replace seed rows, leave custom routines alone.
+      // Walk every PlannedExercise and rewrite aliased ids to canonical
+      // so seeded routines never reference a now-deleted exercise.
       await db.routineTemplates.filter((r) => r.isSeed).delete();
       const allRoutineSeeds = [...STRONG_CURVES_ROUTINES, ...EXTRA_ROUTINES];
       const seededRoutines: RoutineTemplate[] = allRoutineSeeds.map((r) => ({
         ...r,
+        weeks: r.weeks.map((w) => ({
+          ...w,
+          days: w.days.map((d) => ({
+            ...d,
+            blocks: d.blocks.map((b) => ({
+              ...b,
+              exercises: b.exercises.map((ex) => ({
+                ...ex,
+                exerciseId: resolveExerciseId(ex.exerciseId),
+              })),
+            })),
+          })),
+        })),
         profileId: null,
         createdAt: SEED_EPOCH,
         updatedAt: SEED_EPOCH,

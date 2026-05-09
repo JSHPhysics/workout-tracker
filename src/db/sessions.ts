@@ -372,6 +372,157 @@ export async function addWarmupSets(
  * Idempotent — safe to call on every boot. Returns the number of
  * rows it touched (for telemetry / console logging). */
 const REPAIR_LOOKAHEAD_MS = 60 * 60 * 1000;
+/** Rewrite every reference to an aliased exercise id over to its
+ * canonical id. Runs once on every boot (idempotent — once nothing
+ * matches the alias map, subsequent runs are O(rows) and write
+ * nothing).
+ *
+ * Affected tables:
+ *   - setLogs.exerciseId (direct field)
+ *   - prRecords.exerciseId
+ *   - sessions.livePlan (JSON, deep walk through every PlannedExercise)
+ *   - routineTemplates (custom only — seed routines get replaced
+ *     by the seed-loader on the same boot)
+ *   - muscleVolumeOverrides — id collisions handled by keeping the
+ *     canonical row; the aliased row is dropped
+ *   - exerciseRestPrefs — same collision handling
+ *
+ * Returns the number of rows touched (for telemetry / console). */
+export async function consolidateAliasedExercises(): Promise<number> {
+  // Lazy import so the boot module doesn't pull this in eagerly.
+  const { EXERCISE_ALIASES } = await import('../seed/exerciseAliases');
+  const aliasIds = new Set(Object.keys(EXERCISE_ALIASES));
+  if (aliasIds.size === 0) return 0;
+
+  let touched = 0;
+
+  // 1. setLogs — flat field rewrite.
+  const aliasedSetLogs = await db.setLogs
+    .filter((l) => aliasIds.has(l.exerciseId))
+    .toArray();
+  for (const sl of aliasedSetLogs) {
+    const canonical = EXERCISE_ALIASES[sl.exerciseId]!;
+    await db.setLogs.update(sl.id, { exerciseId: canonical });
+    touched += 1;
+  }
+
+  // 2. prRecords — flat field rewrite.
+  const aliasedPrs = await db.prRecords
+    .filter((r) => aliasIds.has(r.exerciseId))
+    .toArray();
+  for (const pr of aliasedPrs) {
+    const canonical = EXERCISE_ALIASES[pr.exerciseId]!;
+    await db.prRecords.update(pr.id, { exerciseId: canonical });
+    touched += 1;
+  }
+
+  // 3. sessions.livePlan — JSON deep walk.
+  const allSessions = await db.sessions.toArray();
+  for (const s of allSessions) {
+    let needsUpdate = false;
+    const newPlan: Block[] = s.livePlan.map((block) => ({
+      ...block,
+      exercises: block.exercises.map((ex) => {
+        if (aliasIds.has(ex.exerciseId)) {
+          needsUpdate = true;
+          return { ...ex, exerciseId: EXERCISE_ALIASES[ex.exerciseId]! };
+        }
+        return ex;
+      }),
+    }));
+    if (needsUpdate) {
+      await db.sessions.update(s.id, { livePlan: newPlan });
+      touched += 1;
+    }
+  }
+
+  // 4. Custom routines (isSeed === false) — same JSON walk as
+  // sessions.livePlan. Seed routines are replaced by the seed-
+  // loader on the same boot so they don't need migrating.
+  const customRoutines = await db.routineTemplates
+    .filter((r) => !r.isSeed)
+    .toArray();
+  for (const r of customRoutines) {
+    let needsUpdate = false;
+    const newWeeks = r.weeks.map((w) => ({
+      ...w,
+      days: w.days.map((d) => ({
+        ...d,
+        blocks: d.blocks.map((b) => ({
+          ...b,
+          exercises: b.exercises.map((ex) => {
+            if (aliasIds.has(ex.exerciseId)) {
+              needsUpdate = true;
+              return { ...ex, exerciseId: EXERCISE_ALIASES[ex.exerciseId]! };
+            }
+            return ex;
+          }),
+        })),
+      })),
+    }));
+    if (needsUpdate) {
+      await db.routineTemplates.update(r.id, {
+        weeks: newWeeks,
+        updatedAt: new Date().toISOString(),
+      });
+      touched += 1;
+    }
+  }
+
+  // 5. muscleVolumeOverrides — per-pair table. Collision-safe: if
+  // the canonical row already exists, drop the aliased one rather
+  // than overwriting the user's canonical-side customisations.
+  const aliasedOverrides = await db.muscleVolumeOverrides
+    .filter((o) => aliasIds.has(o.exerciseId))
+    .toArray();
+  for (const o of aliasedOverrides) {
+    const canonical = EXERCISE_ALIASES[o.exerciseId]!;
+    const newPrimaryKey = `${o.profileId}-${canonical}`;
+    const existing = await db.muscleVolumeOverrides.get(newPrimaryKey);
+    if (existing) {
+      // Canonical wins; drop the orphan.
+      await db.muscleVolumeOverrides.delete(o.id);
+    } else {
+      // Migrate by deleting the aliased row and re-inserting under the
+      // canonical id (the synthetic id changes too).
+      await db.muscleVolumeOverrides.delete(o.id);
+      await db.muscleVolumeOverrides.put({
+        id: newPrimaryKey,
+        profileId: o.profileId,
+        exerciseId: canonical,
+        weights: o.weights,
+        updatedAt: o.updatedAt,
+      });
+    }
+    touched += 1;
+  }
+
+  // 6. exerciseRestPrefs — same shape as muscleVolumeOverrides.
+  const aliasedRest = await db.exerciseRestPrefs
+    .filter((p) => aliasIds.has(p.exerciseId))
+    .toArray();
+  for (const p of aliasedRest) {
+    const canonical = EXERCISE_ALIASES[p.exerciseId]!;
+    const newPrimaryKey = `${p.profileId}-${canonical}`;
+    const existing = await db.exerciseRestPrefs.get(newPrimaryKey);
+    if (existing) {
+      await db.exerciseRestPrefs.delete(p.id);
+    } else {
+      await db.exerciseRestPrefs.delete(p.id);
+      await db.exerciseRestPrefs.put({
+        id: newPrimaryKey,
+        profileId: p.profileId,
+        exerciseId: canonical,
+        restSeconds: p.restSeconds,
+        updatedAt: p.updatedAt,
+      });
+    }
+    touched += 1;
+  }
+
+  return touched;
+}
+
 export async function repairRetrospectiveSetTimestamps(): Promise<number> {
   let fixed = 0;
   const allSessions = await db.sessions.toArray();
