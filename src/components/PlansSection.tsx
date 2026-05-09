@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { useProfilePlans, deletePlan, setPlanStatus } from '../db/plans';
@@ -66,6 +67,12 @@ export function PlansSection({ profileId, routineById }: Props) {
     <section className="flex flex-col gap-3">
       <header className="flex items-baseline justify-between">
         <h2 className="font-display text-base font-medium">My plans</h2>
+        <Link
+          to="/calendar"
+          className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-muted transition hover:text-accent"
+        >
+          Calendar →
+        </Link>
       </header>
       <ul className="flex flex-col gap-2">
         {visible.map((plan) => {

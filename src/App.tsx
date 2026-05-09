@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ActiveProfileTheme } from './components/ActiveProfileTheme';
 import { AppShell } from './components/AppShell';
+import { Calendar } from './screens/Calendar';
 import { ProfileCreate } from './screens/ProfileCreate';
 import { ProfilePicker } from './screens/ProfilePicker';
 import { Today } from './screens/Today';
@@ -22,6 +23,7 @@ export function App() {
         <Route path="/profiles/new" element={<ProfileCreate />} />
         <Route element={<AppShell />}>
           <Route path="/today" element={<Today />} />
+          <Route path="/calendar" element={<Calendar />} />
           <Route path="/history" element={<History />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/routines" element={<Routines />} />

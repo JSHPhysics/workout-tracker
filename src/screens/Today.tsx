@@ -347,9 +347,17 @@ function TodayPlanSection({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
-        Today&apos;s plan
-      </span>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-accent">
+          Today&apos;s plan
+        </span>
+        <Link
+          to="/calendar"
+          className="text-[0.6rem] uppercase tracking-[0.18em] text-fg-muted transition hover:text-accent"
+        >
+          Calendar →
+        </Link>
+      </div>
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
           <li key={row.id}>

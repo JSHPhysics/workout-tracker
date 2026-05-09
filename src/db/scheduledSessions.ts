@@ -63,6 +63,53 @@ export function useScheduledSession(
   }, [id]);
 }
 
+/** Every scheduled row for the profile whose plannedDate falls in
+ * `[fromDate, toDate]` inclusive. All statuses included — the
+ * Calendar screen distinguishes pending / completed / skipped
+ * visually. Sorted by plannedDate ascending. */
+export function useScheduledInRange(
+  profileId: string | null | undefined,
+  fromDate: string,
+  toDate: string,
+): ScheduledSession[] | undefined {
+  return useLiveQuery(async () => {
+    if (!profileId) return [];
+    const rows = await db.scheduledSessions
+      .where('[profileId+plannedDate]')
+      .between([profileId, fromDate], [profileId, toDate], true, true)
+      .toArray();
+    return rows.sort((a, b) =>
+      a.plannedDate.localeCompare(b.plannedDate) ||
+      a.createdAt.localeCompare(b.createdAt),
+    );
+  }, [profileId, fromDate, toDate]);
+}
+
+/** Create a one-off scheduled session not tied to a plan. Used by
+ * the Calendar's "Schedule one-off" affordance. The user picks a
+ * date + routine + week + day; we materialise the row immediately
+ * so it shows on Today / Calendar like any plan-driven row. */
+export async function scheduleOneOff(input: {
+  profileId: string;
+  plannedDate: string;
+  routineId: string;
+  weekNumber: number;
+  dayNumber: number;
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.scheduledSessions.add({
+    id,
+    profileId: input.profileId,
+    plannedDate: input.plannedDate,
+    routineId: input.routineId,
+    weekNumber: input.weekNumber,
+    dayNumber: input.dayNumber,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  });
+  return id;
+}
+
 /** Mark a scheduled row as completed and link the live Session that
  * was started for it. Idempotent — re-running on an already-linked
  * row replaces sessionId with the latest.
