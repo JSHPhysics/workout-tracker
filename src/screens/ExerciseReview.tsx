@@ -9,9 +9,16 @@ import type { Exercise } from '../types';
 type Verdict = 'approved' | 'rejected';
 type Piece = 'diagram' | 'demoUrl' | 'instructions';
 
+interface PieceState {
+  verdict?: Verdict;
+  /** User-supplied replacement candidate. URL for diagram/demo,
+   * free-form multiline text for instructions. Stored verbatim — we
+   * don't validate URL shape here, the export pass does. */
+  suggestion?: string;
+}
+
 interface ReviewState {
-  // exerciseId → piece → verdict
-  [exerciseId: string]: Partial<Record<Piece, Verdict>>;
+  [exerciseId: string]: Partial<Record<Piece, PieceState>>;
 }
 
 const STORAGE_KEY = 'wt:exercise-review';
@@ -22,12 +29,42 @@ function readReviewState(): ReviewState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null
-      ? (parsed as ReviewState)
-      : {};
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    // Migration: the v1 shape stored a verdict string per piece.
+    // Wrap any bare string in {verdict} so the rest of the code only
+    // ever deals with PieceState objects.
+    const out: ReviewState = {};
+    for (const [exId, val] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof val !== 'object' || val === null) continue;
+      const pieces: Partial<Record<Piece, PieceState>> = {};
+      for (const [piece, raw] of Object.entries(val as Record<string, unknown>)) {
+        if (!isPiece(piece)) continue;
+        if (typeof raw === 'string') {
+          if (raw === 'approved' || raw === 'rejected') {
+            pieces[piece] = { verdict: raw };
+          }
+        } else if (typeof raw === 'object' && raw !== null) {
+          const obj = raw as PieceState;
+          const next: PieceState = {};
+          if (obj.verdict === 'approved' || obj.verdict === 'rejected') {
+            next.verdict = obj.verdict;
+          }
+          if (typeof obj.suggestion === 'string' && obj.suggestion.trim() !== '') {
+            next.suggestion = obj.suggestion;
+          }
+          if (next.verdict || next.suggestion) pieces[piece] = next;
+        }
+      }
+      if (Object.keys(pieces).length > 0) out[exId] = pieces;
+    }
+    return out;
   } catch {
     return {};
   }
+}
+
+function isPiece(s: string): s is Piece {
+  return s === 'diagram' || s === 'demoUrl' || s === 'instructions';
 }
 
 function writeReviewState(state: ReviewState): void {
@@ -66,15 +103,15 @@ function matchesFilter(
       return false;
     }
   }
-  const verdicts = state[ex.id] ?? {};
+  const pieces = state[ex.id] ?? {};
   switch (filter) {
     case 'all':
       return true;
     case 'unreviewed':
       // Any of the three pieces with no verdict yet.
-      return PIECES.some((p) => !verdicts[p]);
+      return PIECES.some((p) => !pieces[p]?.verdict);
     case 'rejected':
-      return PIECES.some((p) => verdicts[p] === 'rejected');
+      return PIECES.some((p) => pieces[p]?.verdict === 'rejected');
     case 'no-instructions':
       return !ex.instructions || ex.instructions.length === 0;
     case 'no-diagram':
@@ -110,16 +147,46 @@ export function ExerciseReview() {
     [exercises, state, filter, search],
   );
 
-  const setVerdict = (exerciseId: string, piece: Piece, next: Verdict | null) => {
+  /** Mutate a single (exerciseId, piece) cell in-place. Empty cells
+   * (no verdict + no suggestion) are pruned so the persisted JSON
+   * stays compact. The mutator receives a draft and decides what to
+   * change — deleting unset properties keeps us compatible with
+   * exactOptionalPropertyTypes. */
+  const updatePiece = (
+    exerciseId: string,
+    piece: Piece,
+    mutate: (draft: PieceState) => void,
+  ) => {
     setState((prev) => {
-      const cur = prev[exerciseId] ?? {};
-      const updated = { ...cur };
-      if (next === null) delete updated[piece];
-      else updated[piece] = next;
+      const exCur = prev[exerciseId] ?? {};
+      const draft: PieceState = { ...(exCur[piece] ?? {}) };
+      mutate(draft);
+      // Treat empty-string suggestion as cleared.
+      if (draft.suggestion !== undefined && draft.suggestion.trim() === '') {
+        delete draft.suggestion;
+      }
+      const updatedEx = { ...exCur };
+      if (!draft.verdict && !draft.suggestion) {
+        delete updatedEx[piece];
+      } else {
+        updatedEx[piece] = draft;
+      }
       const out = { ...prev };
-      if (Object.keys(updated).length === 0) delete out[exerciseId];
-      else out[exerciseId] = updated;
+      if (Object.keys(updatedEx).length === 0) delete out[exerciseId];
+      else out[exerciseId] = updatedEx;
       return out;
+    });
+  };
+
+  const setVerdict = (exerciseId: string, piece: Piece, next: Verdict | null) => {
+    updatePiece(exerciseId, piece, (draft) => {
+      if (next === null) delete draft.verdict;
+      else draft.verdict = next;
+    });
+  };
+  const setSuggestion = (exerciseId: string, piece: Piece, value: string) => {
+    updatePiece(exerciseId, piece, (draft) => {
+      draft.suggestion = value;
     });
   };
 
@@ -127,46 +194,68 @@ export function ExerciseReview() {
     let totalPieces = 0;
     let approved = 0;
     let rejected = 0;
+    let suggested = 0;
     for (const ex of exercises) {
       for (const p of PIECES) {
         totalPieces += 1;
-        const v = state[ex.id]?.[p];
-        if (v === 'approved') approved += 1;
-        else if (v === 'rejected') rejected += 1;
+        const cell = state[ex.id]?.[p];
+        if (cell?.verdict === 'approved') approved += 1;
+        else if (cell?.verdict === 'rejected') rejected += 1;
+        if (cell?.suggestion) suggested += 1;
       }
     }
-    return { totalPieces, approved, rejected };
+    return { totalPieces, approved, rejected, suggested };
   }, [exercises, state]);
 
+  /** Export every exercise that has a rejection OR a suggestion
+   * (whichever is non-empty). Suggestions without a verdict still
+   * count — sometimes you'll want to suggest a better demo link
+   * without going as far as marking the existing one rejected. */
   const exportRejections = async () => {
-    const rejections: {
+    const out: {
       id: string;
       name: string;
-      pieces: { piece: Piece; current: string | null }[];
+      pieces: {
+        piece: Piece;
+        verdict?: Verdict;
+        current: string | null;
+        suggestion?: string;
+      }[];
     }[] = [];
     for (const ex of exercises) {
-      const v = state[ex.id];
-      if (!v) continue;
-      const rejected = PIECES
-        .filter((p) => v[p] === 'rejected')
-        .map((p) => ({
+      const cells = state[ex.id];
+      if (!cells) continue;
+      const rows = PIECES.flatMap((p) => {
+        const cell = cells[p];
+        if (!cell) return [];
+        if (cell.verdict !== 'rejected' && !cell.suggestion) return [];
+        const row: {
+          piece: Piece;
+          verdict?: Verdict;
+          current: string | null;
+          suggestion?: string;
+        } = {
           piece: p,
           current: currentValueFor(ex, p),
-        }));
-      if (rejected.length > 0) {
-        rejections.push({ id: ex.id, name: ex.name, pieces: rejected });
+        };
+        if (cell.verdict) row.verdict = cell.verdict;
+        if (cell.suggestion) row.suggestion = cell.suggestion;
+        return [row];
+      });
+      if (rows.length > 0) {
+        out.push({ id: ex.id, name: ex.name, pieces: rows });
       }
     }
-    const payload = JSON.stringify(rejections, null, 2);
+    const payload = JSON.stringify(out, null, 2);
     try {
       await navigator.clipboard.writeText(payload);
       setExportFlash(
-        `Copied ${rejections.length} exercise${rejections.length === 1 ? '' : 's'} with rejections to clipboard.`,
+        `Copied ${out.length} exercise${out.length === 1 ? '' : 's'} to clipboard.`,
       );
     } catch {
       setExportFlash(`Couldn't copy. Open the browser console for the JSON.`);
       // eslint-disable-next-line no-console
-      console.info('Exercise review rejections:\n' + payload);
+      console.info('Exercise review export:\n' + payload);
     }
     window.setTimeout(() => setExportFlash(null), 4000);
   };
@@ -203,15 +292,18 @@ export function ExerciseReview() {
         <p className="text-sm text-fg-muted">
           Walk through every seeded exercise; for each, mark the
           diagram, demo link, and instructions as ✓ approved or ✗
-          rejected. Persisted in localStorage. Export the rejection
-          list for me to draft replacements.
+          rejected, and optionally type a replacement (URL for
+          diagram/demo, free-form text for instructions). Persisted
+          in localStorage. Export the result so I can roll the
+          changes into the seed.
         </p>
       </header>
 
       <article className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3">
-        <div className="flex items-baseline justify-between text-xs">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
           <span className="font-medium text-fg">
-            {counts.approved} approved · {counts.rejected} rejected
+            {counts.approved} approved · {counts.rejected} rejected ·{' '}
+            {counts.suggested} with suggestion
           </span>
           <span className="text-fg-muted">
             {counts.totalPieces} pieces total
@@ -221,10 +313,10 @@ export function ExerciseReview() {
           <button
             type="button"
             onClick={exportRejections}
-            disabled={counts.rejected === 0}
+            disabled={counts.rejected === 0 && counts.suggested === 0}
             className="rounded-full bg-accent px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-[0.16em] text-accent-fg shadow-soft transition hover:opacity-90 disabled:opacity-50"
           >
-            Export rejections
+            Export changes
           </button>
           <button
             type="button"
@@ -277,8 +369,11 @@ export function ExerciseReview() {
           <li key={ex.id}>
             <ExerciseCard
               exercise={ex}
-              verdicts={state[ex.id] ?? {}}
+              cells={state[ex.id] ?? {}}
               onVerdict={(piece, next) => setVerdict(ex.id, piece, next)}
+              onSuggestion={(piece, value) =>
+                setSuggestion(ex.id, piece, value)
+              }
             />
           </li>
         ))}
@@ -304,12 +399,14 @@ function currentValueFor(ex: Exercise, piece: Piece): string | null {
 
 function ExerciseCard({
   exercise,
-  verdicts,
+  cells,
   onVerdict,
+  onSuggestion,
 }: {
   exercise: Exercise;
-  verdicts: Partial<Record<Piece, Verdict>>;
+  cells: Partial<Record<Piece, PieceState>>;
   onVerdict: (piece: Piece, next: Verdict | null) => void;
+  onSuggestion: (piece: Piece, value: string) => void;
 }) {
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
@@ -322,8 +419,11 @@ function ExerciseCard({
 
       <PieceRow
         label="Diagram"
-        verdict={verdicts.diagram}
-        onChange={(v) => onVerdict('diagram', v)}
+        cell={cells.diagram}
+        onVerdict={(v) => onVerdict('diagram', v)}
+        onSuggestion={(v) => onSuggestion('diagram', v)}
+        suggestionPlaceholder="https://… image URL or 'squat' slug"
+        suggestionKind="line"
       >
         <div className="flex items-center gap-3">
           <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-soft">
@@ -344,8 +444,11 @@ function ExerciseCard({
 
       <PieceRow
         label="Demo link"
-        verdict={verdicts.demoUrl}
-        onChange={(v) => onVerdict('demoUrl', v)}
+        cell={cells.demoUrl}
+        onVerdict={(v) => onVerdict('demoUrl', v)}
+        onSuggestion={(v) => onSuggestion('demoUrl', v)}
+        suggestionPlaceholder="https://… replacement URL"
+        suggestionKind="line"
       >
         {exercise.demoUrl ? (
           <a
@@ -365,8 +468,11 @@ function ExerciseCard({
 
       <PieceRow
         label="Instructions"
-        verdict={verdicts.instructions}
-        onChange={(v) => onVerdict('instructions', v)}
+        cell={cells.instructions}
+        onVerdict={(v) => onVerdict('instructions', v)}
+        onSuggestion={(v) => onSuggestion('instructions', v)}
+        suggestionPlaceholder="One step per line — I'll split on newlines."
+        suggestionKind="multiline"
       >
         {exercise.instructions && exercise.instructions.length > 0 ? (
           <ol className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -389,15 +495,23 @@ function ExerciseCard({
 
 function PieceRow({
   label,
-  verdict,
-  onChange,
+  cell,
+  onVerdict,
+  onSuggestion,
+  suggestionPlaceholder,
+  suggestionKind,
   children,
 }: {
   label: string;
-  verdict: Verdict | undefined;
-  onChange: (next: Verdict | null) => void;
+  cell: PieceState | undefined;
+  onVerdict: (next: Verdict | null) => void;
+  onSuggestion: (value: string) => void;
+  suggestionPlaceholder: string;
+  suggestionKind: 'line' | 'multiline';
   children: React.ReactNode;
 }) {
+  const verdict = cell?.verdict;
+  const suggestion = cell?.suggestion ?? '';
   return (
     <div className="flex flex-col gap-1.5 rounded-xl border border-line/60 bg-surface-soft/40 p-2.5">
       <div className="flex items-center justify-between gap-2">
@@ -408,20 +522,75 @@ function PieceRow({
           <VerdictPill
             active={verdict === 'approved'}
             tone="approve"
-            onClick={() => onChange(verdict === 'approved' ? null : 'approved')}
+            onClick={() => onVerdict(verdict === 'approved' ? null : 'approved')}
             label="Approve"
             symbol="✓"
           />
           <VerdictPill
             active={verdict === 'rejected'}
             tone="reject"
-            onClick={() => onChange(verdict === 'rejected' ? null : 'rejected')}
+            onClick={() => onVerdict(verdict === 'rejected' ? null : 'rejected')}
             label="Reject"
             symbol="✗"
           />
         </div>
       </div>
       <div>{children}</div>
+      <SuggestionInput
+        value={suggestion}
+        onChange={onSuggestion}
+        placeholder={suggestionPlaceholder}
+        kind={suggestionKind}
+      />
+    </div>
+  );
+}
+
+function SuggestionInput({
+  value,
+  onChange,
+  placeholder,
+  kind,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  kind: 'line' | 'multiline';
+}) {
+  const filled = value.trim() !== '';
+  return (
+    <div className="flex flex-col gap-1">
+      <span
+        className={[
+          'text-[0.55rem] font-medium uppercase tracking-[0.18em]',
+          filled ? 'text-accent' : 'text-fg-faint',
+        ].join(' ')}
+      >
+        Suggestion {filled && '·'} {filled && (kind === 'multiline' ? '✎' : '↳')}
+      </span>
+      {kind === 'multiline' ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={[
+            'w-full resize-y rounded-md border bg-surface px-2 py-1.5 text-xs text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none',
+            filled ? 'border-accent/40' : 'border-line',
+          ].join(' ')}
+        />
+      ) : (
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={[
+            'w-full rounded-md border bg-surface px-2 py-1.5 text-xs text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none',
+            filled ? 'border-accent/40' : 'border-line',
+          ].join(' ')}
+        />
+      )}
     </div>
   );
 }
