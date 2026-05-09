@@ -67,9 +67,24 @@ function isPiece(s: string): s is Piece {
   return s === 'diagram' || s === 'demoUrl' || s === 'instructions';
 }
 
-function writeReviewState(state: ReviewState): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function writeReviewState(state: ReviewState): { ok: boolean; reason?: string } {
+  if (typeof localStorage === 'undefined') return { ok: true };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return { ok: true };
+  } catch (err) {
+    // QuotaExceededError lands here when the data URL pile-up overflows
+    // the origin's 5–10 MB localStorage budget. We surface it to the
+    // UI so the user can clear / export rather than silently losing
+    // edits.
+    return {
+      ok: false,
+      reason:
+        err instanceof DOMException && err.name === 'QuotaExceededError'
+          ? 'localStorage is full — export now and clear suggestions to free space.'
+          : `Save failed: ${(err as Error).message}`,
+    };
+  }
 }
 
 // --- Filters --------------------------------------------------------------
@@ -127,10 +142,14 @@ export function ExerciseReview() {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [exportFlash, setExportFlash] = useState<string | null>(null);
+  const [persistError, setPersistError] = useState<string | null>(null);
 
-  // Persist on every change.
+  // Persist on every change. If the write fails (typically because
+  // accumulated image data URLs blew the localStorage quota) we
+  // surface the reason in the header card.
   useEffect(() => {
-    writeReviewState(state);
+    const result = writeReviewState(state);
+    setPersistError(result.ok ? null : (result.reason ?? 'Save failed.'));
   }, [state]);
 
   const exercises = useMemo<Exercise[]>(() => {
@@ -331,6 +350,11 @@ export function ExerciseReview() {
             {exportFlash}
           </p>
         )}
+        {persistError && (
+          <p className="text-[0.65rem] text-accent" role="alert">
+            {persistError}
+          </p>
+        )}
       </article>
 
       <div className="flex flex-col gap-2">
@@ -422,8 +446,8 @@ function ExerciseCard({
         cell={cells.diagram}
         onVerdict={(v) => onVerdict('diagram', v)}
         onSuggestion={(v) => onSuggestion('diagram', v)}
-        suggestionPlaceholder="https://… image URL or 'squat' slug"
-        suggestionKind="line"
+        suggestionPlaceholder="https://… URL, 'squat' slug, or paste/drop an image"
+        suggestionKind="image"
       >
         <div className="flex items-center gap-3">
           <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-soft">
@@ -507,7 +531,7 @@ function PieceRow({
   onVerdict: (next: Verdict | null) => void;
   onSuggestion: (value: string) => void;
   suggestionPlaceholder: string;
-  suggestionKind: 'line' | 'multiline';
+  suggestionKind: 'line' | 'multiline' | 'image';
   children: React.ReactNode;
 }) {
   const verdict = cell?.verdict;
@@ -555,8 +579,17 @@ function SuggestionInput({
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
-  kind: 'line' | 'multiline';
+  kind: 'line' | 'multiline' | 'image';
 }) {
+  if (kind === 'image') {
+    return (
+      <ImageSuggestionInput
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+    );
+  }
   const filled = value.trim() !== '';
   return (
     <div className="flex flex-col gap-1">
@@ -593,6 +626,205 @@ function SuggestionInput({
       )}
     </div>
   );
+}
+
+/** Diagram suggestion supports four input modes:
+ *   - paste an image (Ctrl/Cmd+V on the drop zone)
+ *   - drag & drop an image file onto the drop zone
+ *   - click "Choose file" to open the picker
+ *   - OR type a URL / slug into the text fallback below
+ *
+ * Pasted/picked images are resized to a 600 px long edge and
+ * encoded as JPEG data URLs (~30–80 KB each), so 50+ image
+ * suggestions still fit comfortably in localStorage's typical
+ * 5 MB origin quota. The stored value stays a single string —
+ * either a `data:image/...` URL, an https URL, or a slug — so the
+ * export shape doesn't need a new field. */
+function ImageSuggestionInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+}) {
+  const filled = value.trim() !== '';
+  const isDataImage = value.startsWith('data:image/');
+  const isImageLike = isDataImage || /^https?:\/\//i.test(value);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleBlob = async (blob: Blob) => {
+    setError(null);
+    setBusy(true);
+    try {
+      const dataUrl = await blobToResizedDataUrl(blob);
+      onChange(dataUrl);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) await handleBlob(blob);
+        return;
+      }
+    }
+  };
+
+  const onDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      await handleBlob(file);
+    }
+  };
+
+  const onFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      await handleBlob(file);
+    }
+    // Allow re-picking the same file.
+    e.target.value = '';
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span
+        className={[
+          'text-[0.55rem] font-medium uppercase tracking-[0.18em]',
+          filled ? 'text-accent' : 'text-fg-faint',
+        ].join(' ')}
+      >
+        Suggestion {filled ? `· ${isDataImage ? '🖼' : '↳'}` : ''}
+      </span>
+
+      {/* Drop / paste zone. tabIndex makes it focusable so Ctrl+V
+        * delivers the paste event reliably. */}
+      <div
+        tabIndex={0}
+        role="button"
+        aria-label="Paste, drop, or focus to upload an image"
+        onPaste={onPaste}
+        onDrop={onDrop}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={() => setDragActive(false)}
+        className={[
+          'flex min-h-[80px] flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed bg-surface px-3 py-2 text-center transition focus:outline-none focus:ring-1 focus:ring-accent',
+          dragActive
+            ? 'border-accent bg-accent-soft'
+            : filled && isImageLike
+              ? 'border-accent/40'
+              : 'border-line hover:border-line-strong',
+        ].join(' ')}
+      >
+        {busy ? (
+          <span className="text-[0.65rem] text-fg-muted">Processing…</span>
+        ) : isImageLike ? (
+          <img
+            src={value}
+            alt="Suggested diagram"
+            className="max-h-32 max-w-full rounded"
+          />
+        ) : filled ? (
+          <span className="break-all text-xs text-fg">{value}</span>
+        ) : (
+          <>
+            <span className="text-xs text-fg-muted">
+              Click here, then paste · or drop an image
+            </span>
+            <span className="text-[0.6rem] text-fg-faint">
+              Resized to 600 px JPEG
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 text-[0.6rem]">
+        <label className="cursor-pointer text-fg-muted underline-offset-2 hover:text-accent hover:underline">
+          Choose file
+          <input
+            type="file"
+            accept="image/*"
+            onChange={onFilePick}
+            className="sr-only"
+          />
+        </label>
+        {filled && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="text-fg-faint underline-offset-2 hover:text-fg hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* URL / slug fallback. Hidden (visually) when an image is
+        * pasted — clear it first to switch back to typing. */}
+      <input
+        type="text"
+        value={isDataImage ? '' : value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={isDataImage}
+        title={
+          isDataImage
+            ? 'Clear the pasted image to type a URL or slug here.'
+            : ''
+        }
+        className={[
+          'w-full rounded-md border bg-surface px-2 py-1.5 text-xs text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none disabled:opacity-50',
+          !isDataImage && filled ? 'border-accent/40' : 'border-line',
+        ].join(' ')}
+      />
+
+      {error && (
+        <p className="text-[0.65rem] text-accent" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Resize a pasted/dropped image to a max long-edge of 600 px and
+ * re-encode as JPEG quality 0.78. Keeps each image around 30–80 KB
+ * so 50+ suggestions fit in localStorage's typical 5 MB origin
+ * quota with headroom. */
+async function blobToResizedDataUrl(blob: Blob): Promise<string> {
+  const MAX_DIM = 600;
+  const QUALITY = 0.78;
+  const bitmap = await createImageBitmap(blob);
+  const ratio = Math.min(MAX_DIM / bitmap.width, MAX_DIM / bitmap.height, 1);
+  const w = Math.max(1, Math.round(bitmap.width * ratio));
+  const h = Math.max(1, Math.round(bitmap.height * ratio));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('No 2D canvas context.');
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+  if (!dataUrl.startsWith('data:image/')) {
+    throw new Error('Encoding failed — got an unexpected data URL.');
+  }
+  return dataUrl;
 }
 
 function VerdictPill({
