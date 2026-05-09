@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ExerciseDiagram } from './ExerciseDiagram';
+import { SuggestExerciseFixModal } from './SuggestExerciseFixModal';
 import { EQUIPMENT_LABELS, type Exercise } from '../types';
 
 interface Props {
@@ -25,16 +26,23 @@ const CATEGORY_LABEL: Record<Exercise['category'], string> = {
 /** Bottom-sheet style modal showing how to perform an exercise:
  * diagram, equipment requirements, instructions, and muscle tags. */
 export function ExerciseDetail({ exercise, onClose }: Props) {
-  // Esc closes.
+  const [suggestOpen, setSuggestOpen] = useState(false);
+
+  // Esc closes — but only if the suggest-fix modal isn't intercepting it
+  // already. Without this guard the Esc handler here would also fire and
+  // close the underlying detail sheet, which is jarring when the user
+  // just meant to back out of the suggestion form.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (suggestOpen) return;
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, suggestOpen]);
 
   return (
+    <>
     <div
       role="dialog"
       aria-modal="true"
@@ -151,7 +159,31 @@ export function ExerciseDetail({ exercise, onClose }: Props) {
             </p>
           )}
         </section>
+
+        {/* Quiet entry-point for in-the-moment fix suggestions. Opens
+            a separate modal so the form lives outside this overflow
+            container and so the Esc handler above can defer to it. */}
+        <footer className="flex justify-end border-t border-line/60 pt-3">
+          <button
+            type="button"
+            onClick={() => setSuggestOpen(true)}
+            className="text-[0.65rem] uppercase tracking-[0.18em] text-fg-muted underline-offset-4 transition hover:text-accent hover:underline"
+          >
+            Something off? Suggest a fix
+          </button>
+        </footer>
       </div>
+
     </div>
+    {/* Rendered as a sibling — not a child of the detail backdrop —
+        so a click on the suggest-modal backdrop doesn't bubble to the
+        detail's onClose handler underneath. */}
+    {suggestOpen && (
+      <SuggestExerciseFixModal
+        exercise={exercise}
+        onClose={() => setSuggestOpen(false)}
+      />
+    )}
+    </>
   );
 }
