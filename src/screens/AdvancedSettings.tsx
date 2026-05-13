@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useActiveProfile } from '../state/activeProfile';
+import {
+  disableDevMode,
+  tryUnlockDevMode,
+  useDevMode,
+} from '../state/devMode';
 import { useExerciseMap } from '../db/exercises';
 import {
   clearMuscleVolumeOverride,
@@ -154,6 +159,8 @@ export function AdvancedSettings() {
         </button>
       </article>
 
+      <DevModeCard />
+
       {editorTarget && (
         <MuscleWeightsEditor
           profileId={profileId}
@@ -179,6 +186,96 @@ export function AdvancedSettings() {
         />
       )}
     </section>
+  );
+}
+
+/** Activation-code gated card surfacing the same Developer section
+ * that's normally only visible under `pnpm dev`. The code lives in
+ * `state/devMode.ts` and is intentionally a soft gate — anyone reading
+ * the JS bundle could find it, but a casual user (e.g. the wife
+ * sharing the device) won't stumble onto it. The card stays here in
+ * Advanced Settings so it's a deliberate destination, not a header
+ * affordance. */
+function DevModeCard() {
+  const enabled = useDevMode();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!code.trim()) return;
+    if (tryUnlockDevMode(code)) {
+      setCode('');
+      setError(null);
+    } else {
+      setError('Wrong code.');
+    }
+  };
+
+  if (enabled) {
+    return (
+      <article className="flex flex-col gap-3 rounded-2xl border border-dashed border-accent/40 bg-surface p-4 shadow-soft">
+        <header className="flex flex-col gap-1">
+          <span className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-accent">
+            Dev mode · on
+          </span>
+          <h2 className="font-display text-base font-medium">
+            Developer tools unlocked
+          </h2>
+          <p className="text-xs text-fg-muted">
+            The Developer section is now showing at the bottom of the
+            main Settings page — including the Exercise review tool.
+            Disable to tuck it away again.
+          </p>
+        </header>
+        <button
+          type="button"
+          onClick={() => disableDevMode()}
+          className="self-start rounded-full border border-line bg-surface-soft px-4 py-2 text-xs font-medium uppercase tracking-[0.16em] text-fg-muted transition hover:border-accent hover:text-accent"
+        >
+          Disable dev mode
+        </button>
+      </article>
+    );
+  }
+
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <header className="flex flex-col gap-1">
+        <h2 className="font-display text-base font-medium">Dev mode</h2>
+        <p className="text-xs text-fg-muted">
+          Surface the developer tools (synthetic-history seed,
+          exercise review) on the deployed app. Requires an activation
+          code — if you don&apos;t know it, this isn&apos;t for you.
+        </p>
+      </header>
+      <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
+        <input
+          type="password"
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="Activation code"
+          aria-label="Dev-mode activation code"
+          autoComplete="off"
+          className="flex-1 min-w-[10rem] rounded-xl border border-line bg-surface-soft px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={!code.trim()}
+          className="rounded-full bg-accent px-4 py-2 text-xs font-medium uppercase tracking-[0.16em] text-accent-fg shadow-soft transition hover:opacity-90 disabled:opacity-50"
+        >
+          Unlock
+        </button>
+      </form>
+      {error && (
+        <p className="text-[0.65rem] text-accent" role="alert">
+          {error}
+        </p>
+      )}
+    </article>
   );
 }
 

@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "seed:build": "python scripts/build-seed.py",
-    "icons:build": "python scripts/build-icons.py"
+    "icons:build": "python scripts/build-icons.py",
+    "fix:pull": "node scripts/pull-suggestions.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",

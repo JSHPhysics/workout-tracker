@@ -39,9 +39,18 @@ import { useInstallPrompt } from '../lib/installPrompt';
 import { NumberStepper } from '../components/NumberStepper';
 import { PlateViz } from '../components/PlateViz';
 import { ThemePicker } from '../components/ThemePicker';
+import { useDevMode } from '../state/devMode';
 import type { Barbell, PlateInventoryEntry, Profile } from '../types';
 
 export function Settings() {
+  // Dev tools surface in two situations:
+  //   1. running locally via Vite (`pnpm dev`) — `import.meta.env.DEV`
+  //   2. dev mode toggled on in Advanced Settings on the deployed app
+  // The second path lets the owner audit data on the live PWA without
+  // needing to run a localhost server, while staying invisible to a
+  // casual user who never enters the activation code.
+  const devMode = useDevMode();
+  const showDevTools = import.meta.env.DEV || devMode;
   return (
     <section className="mx-auto flex max-w-md flex-col gap-8">
       <header className="flex flex-col gap-2">
@@ -60,7 +69,7 @@ export function Settings() {
       <BackupHost />
       <Equipment />
       <DangerZone />
-      {import.meta.env.DEV && <DeveloperTools />}
+      {showDevTools && <DeveloperTools />}
     </section>
   );
 }
