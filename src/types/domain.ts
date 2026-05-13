@@ -284,6 +284,13 @@ export interface PlannedExercise {
    * pre-logged so undoing a tick falls back to the suggested values
    * instead of the autofill working weight. */
   warmupSets?: { weight: number; reps: number }[];
+  /** The working weight the user entered in the warm-up generator —
+   * i.e. "what I'm warming up TO today". Used as the working-set
+   * stepper default in `computeDefaults`, sitting between the in-
+   * session backfill (most recent logged set this workout) and the
+   * cross-session prior ("last time you did this exercise"). Set
+   * alongside `warmupSets` by `addWarmupSets`. */
+  targetWeight?: number;
 }
 
 export interface Block {

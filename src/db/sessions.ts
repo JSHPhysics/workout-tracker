@@ -336,6 +336,7 @@ export async function addWarmupSets(
   blockOrder: number,
   exerciseOrder: number,
   warmups: WarmupSpec[],
+  targetWeight?: number,
 ): Promise<void> {
   if (warmups.length === 0) return;
   await db.transaction('rw', db.sessions, async () => {
@@ -349,6 +350,12 @@ export async function addWarmupSets(
     const slot = nextPlan[blockOrder]!.exercises[exerciseOrder]!;
     slot.warmupSets = warmups.map((w) => ({ weight: w.weight, reps: w.reps }));
     slot.setCount = slot.setCount + warmups.length;
+    // Persist the working weight the user warmed up to so the
+    // working-set rows pre-fill to it. Only when it's a real positive
+    // — caller typically passes the modal's target verbatim.
+    if (typeof targetWeight === 'number' && targetWeight > 0) {
+      slot.targetWeight = targetWeight;
+    }
     await db.sessions.update(sessionId, { livePlan: nextPlan });
   });
 }

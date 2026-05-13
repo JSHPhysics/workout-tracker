@@ -106,7 +106,13 @@ export const useRestTimer = create<State & Actions>((set, get) => ({
         pausedRemaining: null,
         totalMs: addMs,
       });
-      persistTotal(s.context, addMs);
+      // Deliberately NOT persisting here. "+30s after Rest done"
+      // means "give me a brief extension this time", not "shrink the
+      // saved rest for this exercise forever". The previous version
+      // wrote `addMs` (e.g. 30 s) through `persistTotal`, which
+      // permanently rewired the per-exercise pref to whatever the
+      // user tapped post-rest — surfacing as "the rest timer ignores
+      // my default and barely pops up before disappearing".
     }
   },
   pause: () => {

@@ -13,8 +13,14 @@ interface Props {
   /** Percentages from the active profile, in order. */
   percentages: readonly number[];
   /** Called with one entry per percentage — already snapped to `step`,
-   * with the user-chosen reps. */
-  onGenerate: (warmups: { weight: number; reps: number }[]) => void;
+   * with the user-chosen reps. `targetWeight` is the working weight
+   * the user entered (i.e. what they're warming up TO); the caller
+   * persists it so the working-set rows pre-fill to that weight
+   * instead of "last time you did this exercise". */
+  onGenerate: (
+    warmups: { weight: number; reps: number }[],
+    targetWeight: number,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -66,7 +72,10 @@ export function WarmupGeneratorModal({
 
   const generate = () => {
     if (!canGenerate) return;
-    onGenerate(preview.map((p) => ({ weight: p.weight, reps })));
+    onGenerate(
+      preview.map((p) => ({ weight: p.weight, reps })),
+      target,
+    );
   };
 
   return (

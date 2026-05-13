@@ -72,6 +72,19 @@ export function RestTimerBar() {
     }
   }, [status, remaining, end]);
 
+  // Reset the end-cue latch whenever a *new* countdown is armed
+  // (deadline transitions to a fresh value, including the 'ended' →
+  // 'running' transition the main effect above misses). Without this,
+  // ticking the next set while the bar is still showing "Rest done"
+  // would arm the new timer visually but silently swallow its end cue
+  // when it expired — leaving the bar stuck at 0s and the user
+  // wondering why they never heard a chime.
+  useEffect(() => {
+    if (deadline !== null) {
+      cueFired.current = false;
+    }
+  }, [deadline]);
+
   // Auto-dismiss the "ended" state after a few seconds so the bar
   // doesn't loiter once the user has had time to react.
   useEffect(() => {

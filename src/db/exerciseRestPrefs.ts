@@ -46,7 +46,11 @@ export async function setPreferredRest(
   exerciseId: string,
   restSeconds: number,
 ): Promise<void> {
-  if (!Number.isFinite(restSeconds) || restSeconds < 0) return;
+  // Reject zero as well as negatives — a 0-second pref propagates
+  // through `resolvedRestSeconds`' `??` chain (which only short-
+  // circuits on null/undefined) and would silently disable the rest
+  // timer for that exercise.
+  if (!Number.isFinite(restSeconds) || restSeconds <= 0) return;
   const row: ExerciseRestPref = {
     id: prefId(profileId, exerciseId),
     profileId,
@@ -64,4 +68,20 @@ export async function clearPreferredRest(
   exerciseId: string,
 ): Promise<void> {
   await db.exerciseRestPrefs.delete(prefId(profileId, exerciseId));
+}
+
+/** Wipe every saved per-exercise rest preference for a profile. Used
+ * by Settings → Rest timer → "Reset rest memory" so a user can recover
+ * from drift (e.g. accidental +/- 30s adjustments having quietly
+ * rewired a bunch of exercises away from their default). Returns the
+ * number of rows cleared so the caller can show "reset N exercises". */
+export async function clearAllPreferredRest(
+  profileId: string,
+): Promise<number> {
+  const rows = await db.exerciseRestPrefs
+    .where({ profileId })
+    .toArray();
+  if (rows.length === 0) return 0;
+  await db.exerciseRestPrefs.bulkDelete(rows.map((r) => r.id));
+  return rows.length;
 }

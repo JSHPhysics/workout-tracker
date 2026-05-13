@@ -29,6 +29,7 @@ import {
   EQUIPMENT_TAGS,
   type EquipmentTag,
 } from '../types';
+import { clearAllPreferredRest } from '../db/exerciseRestPrefs';
 import { clearSessionData, seedSyntheticHistory } from '../db/syntheticData';
 import {
   BackupSection,
@@ -431,7 +432,63 @@ function RestTimerCard({ profile }: { profile: Profile }) {
           Use exercise defaults
         </button>
       )}
+      <ResetRestMemoryAction profileId={profile.id} />
     </article>
+  );
+}
+
+/** Bulk-clears every per-exercise rest pref stored from the +/- 30s
+ * buttons. Useful after a stretch of accidental drift where exercises
+ * end up remembering very short rests and the default-rest setting
+ * appears to be "ignored". Tucked under a confirmation so a casual
+ * mis-tap doesn't wipe deliberate adjustments. */
+function ResetRestMemoryAction({ profileId }: { profileId: string }) {
+  const [status, setStatus] = useState<null | string>(null);
+  const [busy, setBusy] = useState(false);
+  const reset = async () => {
+    if (busy) return;
+    if (
+      !window.confirm(
+        "Forget every per-exercise rest you've saved via the rest bar's +/- 30s? Your default rest setting (above) will take over for all exercises again.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const n = await clearAllPreferredRest(profileId);
+      setStatus(
+        n === 0
+          ? 'No saved rests to clear.'
+          : `Cleared ${n} saved rest${n === 1 ? '' : 's'}.`,
+      );
+      window.setTimeout(() => setStatus(null), 4000);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-1 border-t border-line/50 pt-3">
+      <p className="text-[0.65rem] text-fg-muted">
+        If the rest timer ever seems to ignore your default — usually
+        the result of the bar&apos;s ± 30s saving a value you
+        didn&apos;t mean to keep — clear the saved per-exercise rests
+        and start fresh.
+      </p>
+      <button
+        type="button"
+        onClick={reset}
+        disabled={busy}
+        className="self-start rounded-full border border-line bg-surface-soft px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-fg-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        {busy ? 'Resetting…' : 'Reset rest memory'}
+      </button>
+      {status && (
+        <p className="text-[0.65rem] text-fg-muted" role="status">
+          {status}
+        </p>
+      )}
+    </div>
   );
 }
 

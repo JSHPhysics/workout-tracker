@@ -727,14 +727,29 @@ function ExerciseGroup({
   //   3. user's profile-wide default rest (Settings → Preferences)
   //   4. exercise's seed default
   //   5. 90 s global fallback
-  // restPref is undefined while loading (Dexie live-query) — treat
-  // that as "no pref set" so the chain still resolves cleanly on
-  // first render.
+  //
+  // Subtleties:
+  //  - `??` only short-circuits on null/undefined. A `0` from the
+  //    user-controlled levels (1–3) would propagate, and since
+  //    `startRest(0)` silently bails, the rest timer would never
+  //    fire. We filter those down to "positive number or null" as a
+  //    defensive guard against stale/imported data — `setPreferredRest`
+  //    now rejects zero on write, but older rows or backup restores
+  //    could still have one lurking.
+  //  - Level 4 (`exercise.defaultRestSeconds`) deliberately preserves
+  //    the value as-is. Cardio entries in the seed use `0` as an
+  //    intentional "no rest timer for this exercise" signal (walking,
+  //    running, cycling, etc.) — coercing those to the 90 s fallback
+  //    would pop up an unwanted timer after every daily-walk session.
+  //  - restPref is `undefined` while the live query is loading; that
+  //    naturally falls through here.
   const GLOBAL_DEFAULT_REST_S = 90;
+  const positive = (v: number | null | undefined): number | null =>
+    typeof v === 'number' && v > 0 ? v : null;
   const resolvedRestSeconds =
-    (typeof restPref === 'number' ? restPref : null) ??
-    planned.restSeconds ??
-    profileDefaultRestSeconds ??
+    positive(restPref) ??
+    positive(planned.restSeconds) ??
+    positive(profileDefaultRestSeconds) ??
     exercise.defaultRestSeconds ??
     GLOBAL_DEFAULT_REST_S;
   // The warm-up generator stashes specs on the planned slot at
@@ -820,8 +835,25 @@ function ExerciseGroup({
         break;
       }
     }
-    // Cross-session fallback (only when in-session yielded nothing
-    // for that metric).
+    // Warm-up-generator target (only weight is in scope here — the
+    // generator collects a working-weight target, not reps). Sits
+    // *between* in-session backfill and the cross-session prior:
+    //  - in-session wins (if the user just logged set 1 at 78 kg the
+    //    next working-set row should start at 78, not jump back to
+    //    the 80 kg target they entered earlier).
+    //  - But if no working set has logged yet for this slot, the
+    //    target the user entered overrides the cross-session prior
+    //    — that's the whole point of asking them "warming up to
+    //    what?" rather than silently assuming last session's weight.
+    if (
+      weight === undefined &&
+      typeof planned.targetWeight === 'number' &&
+      planned.targetWeight > 0
+    ) {
+      weight = planned.targetWeight;
+    }
+    // Cross-session fallback (only when in-session AND target yielded
+    // nothing for that metric).
     if (priorMetric) {
       if (weight === undefined && priorMetric.weight !== undefined) {
         weight = priorMetric.weight;
@@ -983,12 +1015,13 @@ function ExerciseGroup({
           initialTarget={priorMetric?.weight ?? 0}
           percentages={warmupPercentages}
           onCancel={() => setWarmupOpen(false)}
-          onGenerate={(warmups) => {
+          onGenerate={(warmups, targetWeight) => {
             void addWarmupSets(
               sessionId,
               blockOrder,
               exerciseOrder,
               warmups,
+              targetWeight,
             );
             setWarmupOpen(false);
           }}
