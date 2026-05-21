@@ -9,6 +9,12 @@ import { setPreferredRest } from '../db/exerciseRestPrefs';
 
 export type RestTimerStatus = 'idle' | 'running' | 'paused' | 'ended';
 
+/** What the running countdown represents. 'rest' is the after-set rest
+ * cue; 'hold' is a duration timer the user starts for a time-based
+ * exercise (a stretch hold, plank, dead hang). Drives the bar's wording
+ * only — the countdown/cue machinery is identical. */
+export type RestTimerKind = 'rest' | 'hold';
+
 /** Identifies which exercise the running rest belongs to. When set,
  * adjustments via +/- 30s are persisted as the user's preferred rest
  * for that (profile, exercise) and recalled next session. Cleared on
@@ -31,6 +37,8 @@ interface State {
   /** Context for persistence-on-adjust. null when the timer was
    * started without an exercise scope (e.g. standalone Timers screen). */
   context: RestTimerContext | null;
+  /** Whether this countdown is an after-set rest or an active hold. */
+  kind: RestTimerKind;
 }
 
 interface Actions {
@@ -38,6 +46,7 @@ interface Actions {
     seconds: number,
     label?: string,
     context?: RestTimerContext,
+    kind?: RestTimerKind,
   ) => void;
   /** Add `seconds` to the running total. Negative values shorten — the
    * total clamps at 0. When a context is set, the new total is
@@ -57,6 +66,7 @@ const initial: State = {
   totalMs: 0,
   label: null,
   context: null,
+  kind: 'rest',
 };
 
 /** Persist the new total to per-exercise prefs. Fire-and-forget — the
@@ -70,7 +80,7 @@ function persistTotal(context: RestTimerContext | null, totalMs: number) {
 
 export const useRestTimer = create<State & Actions>((set, get) => ({
   ...initial,
-  start: (seconds, label, context) => {
+  start: (seconds, label, context, kind) => {
     if (seconds <= 0) return;
     const ms = Math.round(seconds * 1000);
     set({
@@ -80,6 +90,7 @@ export const useRestTimer = create<State & Actions>((set, get) => ({
       totalMs: ms,
       label: label ?? null,
       context: context ?? null,
+      kind: kind ?? 'rest',
     });
   },
   extend: (seconds) => {

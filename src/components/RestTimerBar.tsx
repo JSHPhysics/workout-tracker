@@ -27,6 +27,7 @@ export function RestTimerBar() {
   const pausedRemaining = useRestTimer((s) => s.pausedRemaining);
   const totalMs = useRestTimer((s) => s.totalMs);
   const label = useRestTimer((s) => s.label);
+  const kind = useRestTimer((s) => s.kind);
   const extend = useRestTimer((s) => s.extend);
   const pause = useRestTimer((s) => s.pause);
   const resume = useRestTimer((s) => s.resume);
@@ -107,6 +108,17 @@ export function RestTimerBar() {
 
   const isEnded = status === 'ended';
   const isPaused = status === 'paused';
+  const isHold = kind === 'hold';
+  const doneLabel = isHold ? 'Hold done' : 'Rest done';
+  const statusLabel = isEnded
+    ? doneLabel
+    : isPaused
+      ? isHold
+        ? 'Hold paused'
+        : 'Rest paused'
+      : isHold
+        ? 'Holding'
+        : 'Resting';
 
   // Tailwind utility shared by all action-row buttons. Each button is
   // flex-1 so the row divides evenly regardless of how many buttons
@@ -146,7 +158,7 @@ export function RestTimerBar() {
             trackClassName={isEnded ? 'text-accent-fg/30' : 'text-line'}
             fillClassName={isEnded ? 'text-accent-fg' : 'text-accent'}
             ariaLabel={
-              isEnded ? 'Rest done' : `${formatRemaining(remaining)} remaining`
+              isEnded ? doneLabel : `${formatRemaining(remaining)} remaining`
             }
           >
             <span className="font-mono text-[0.7rem] tabular-nums">
@@ -156,7 +168,7 @@ export function RestTimerBar() {
 
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-[0.6rem] font-medium uppercase tracking-[0.18em]">
-              {isEnded ? 'Rest done' : isPaused ? 'Rest paused' : 'Resting'}
+              {statusLabel}
             </span>
             {label && (
               <span
@@ -203,7 +215,15 @@ export function RestTimerBar() {
               type="button"
               onClick={isPaused ? resume : pause}
               className={actionBase}
-              aria-label={isPaused ? 'Resume rest' : 'Pause rest'}
+              aria-label={
+                isPaused
+                  ? isHold
+                    ? 'Resume hold'
+                    : 'Resume rest'
+                  : isHold
+                    ? 'Pause hold'
+                    : 'Pause rest'
+              }
               title={isPaused ? 'Resume' : 'Pause'}
             >
               <span aria-hidden className="text-sm leading-none">
@@ -215,7 +235,7 @@ export function RestTimerBar() {
             type="button"
             onClick={isEnded ? dismiss : end}
             className={actionBase}
-            aria-label={isEnded ? 'Dismiss' : 'Skip rest'}
+            aria-label={isEnded ? 'Dismiss' : isHold ? 'Skip hold' : 'Skip rest'}
             title={isEnded ? 'Dismiss' : 'Skip'}
           >
             <span aria-hidden className="text-sm leading-none">

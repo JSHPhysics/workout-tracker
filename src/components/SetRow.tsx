@@ -192,6 +192,18 @@ export function SetRow({
 
   const startRest = useRestTimer((s) => s.start);
 
+  /** Arm a countdown for the planned hold duration on a time-based
+   * exercise (stretch, plank, dead hang). Reuses the rest-timer bar's
+   * machinery — wall-clock countdown, end chime, vibration, wake lock —
+   * but with `kind: 'hold'` so the bar reads "Holding"/"Hold done".
+   * No persistence context: a hold isn't a per-exercise rest pref, so
+   * any +/- 30s adjustment is a one-off and must not rewrite defaults. */
+  const startHold = () => {
+    if (blockSkipped || duration <= 0) return;
+    primeAudio();
+    startRest(duration, `Hold · ${exercise.name}`, undefined, 'hold');
+  };
+
   const tick = async () => {
     if (busy || blockSkipped) return;
     setBusy(true);
@@ -395,15 +407,30 @@ export function SetRow({
           />
         )}
         {isTimeBased && (
-          <NumberStepper
-            value={duration}
-            onChange={withDirty(setDuration)}
-            step={TIME_STEP}
-            ariaLabel="Duration in seconds"
-            disabled={blockSkipped}
-            format={(v) => `${v}s`}
-            width={5}
-          />
+          <>
+            <NumberStepper
+              value={duration}
+              onChange={withDirty(setDuration)}
+              step={TIME_STEP}
+              ariaLabel="Duration in seconds"
+              disabled={blockSkipped}
+              format={(v) => `${v}s`}
+              width={5}
+            />
+            <button
+              type="button"
+              onClick={startHold}
+              disabled={blockSkipped || duration <= 0}
+              aria-label="Start hold timer"
+              title="Start hold timer"
+              className="flex h-12 items-center gap-1.5 rounded-full bg-surface-soft px-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-fg transition hover:bg-surface-elevated disabled:opacity-40"
+            >
+              <span aria-hidden className="text-sm leading-none">
+                ▶
+              </span>
+              Hold
+            </button>
+          </>
         )}
         {isDistance && (
           <>
