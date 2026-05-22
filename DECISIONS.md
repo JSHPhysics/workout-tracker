@@ -1936,6 +1936,29 @@ call). Logic lives in `src/lib/persistentStorage.ts`; never throws.
 
 ---
 
+## 2026-05-22 — Post-workout backup prompt fires after every session
+
+**Context.** The "Back up now?" modal (`BackupPromptModal`, chained after
+the PR-celebration + wellbeing prompts in `Session.finish`) was gated on
+`staleness(...).severity !== 'fresh'` — i.e. only shown when the last
+backup was 7+ days old. A user who'd backed up within the week therefore
+got no prompt on finishing, ended up a workout behind, and lost it to a
+storage wipe.
+
+**Decision.** Drop the stale-only gate for live workouts: prompt after
+*every* finished session, so the JSON is never more than one workout
+behind. The modal stays one-tap-skippable ("Later"). Retrospective
+sessions (back-filling a past workout from History) keep the stale-only
+gate — nagging mid-history-edit would be jarring and that flow isn't "the
+end of a workout".
+
+**Consequences.** Slightly more frequent prompting, accepted as the right
+trade after the data-loss incident. Pairs with the persistent-storage
+request (same day) — persistence guards the live DB; the per-workout
+prompt keeps the durable copy current.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

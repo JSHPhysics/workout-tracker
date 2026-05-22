@@ -181,10 +181,24 @@ export function Session() {
   };
 
   const advanceFromWellbeing = () => {
+    // Prompt to back up after *every* finished workout, not just when the
+    // last backup is stale. The old stale-only gate (>7 days) meant a
+    // workout logged within a week of the last backup never prompted —
+    // which is how a user ended up a workout behind and lost it to a
+    // storage wipe. Backing up after each session keeps the JSON at most
+    // one workout behind. The modal is still one-tap-skippable ("Later").
+    //
+    // Exception: retrospective sessions (back-filling a past workout from
+    // History) only prompt when actually stale — nagging mid-history-edit
+    // would be jarring, and that flow isn't "the end of a workout".
+    const retrospective = session
+      ? isRetrospectiveSession(session.startedAt)
+      : false;
     const stale = profile
       ? staleness(profile.lastBackupAt).severity !== 'fresh'
       : false;
-    if (stale) {
+    const shouldPrompt = retrospective ? stale : true;
+    if (shouldPrompt) {
       setBackupPrompt(true);
     } else {
       navigate('/history');
