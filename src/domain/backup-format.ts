@@ -14,15 +14,27 @@ import type {
   Barbell,
   BodyweightLog,
   Exercise,
+  ExerciseHoldPref,
+  ExerciseRestPref,
+  FavouriteRoutine,
+  MuscleVolumeOverride,
   PRRecord,
+  PeriodLog,
   PlateInventory,
   Profile,
   RoutineTemplate,
+  ScheduledSession,
   Session,
   SetLog,
+  WorkoutPlan,
 } from '../types';
 
-export const BACKUP_SCHEMA_VERSION = 1;
+// v2 (2026-05-22): added the seven tables that v1 silently dropped on
+// restore — period logs (real cycle-tracking data!), per-exercise rest
+// + hold prefs, favourite routines, workout plans, scheduled sessions,
+// and muscle-volume overrides. v1 files restore fine: `migrateBackup`
+// defaults the new arrays to []. See DECISIONS.md.
+export const BACKUP_SCHEMA_VERSION = 2;
 export const BACKUP_MAGIC = 'workout-tracker.backup';
 
 export interface BackupEnvelope {
@@ -54,6 +66,16 @@ export interface BackupData {
   /** Persisted for diagnostics; the importer recomputes these from
    * set logs and discards what's here. */
   prRecords: PRRecord[];
+  // --- Added in schemaVersion 2. Absent on v1 files; `migrateBackup`
+  // defaults each to [] so older backups still restore. ---
+  /** Cycle-tracking data — genuine user health data, not derived. */
+  periodLogs: PeriodLog[];
+  exerciseRestPrefs: ExerciseRestPref[];
+  exerciseHoldPrefs: ExerciseHoldPref[];
+  favouriteRoutines: FavouriteRoutine[];
+  workoutPlans: WorkoutPlan[];
+  scheduledSessions: ScheduledSession[];
+  muscleVolumeOverrides: MuscleVolumeOverride[];
 }
 
 export type ParseResult =
@@ -110,10 +132,32 @@ export function parseBackup(raw: unknown): ParseResult {
 }
 
 /** Apply per-version migrations to bring an older envelope up to the
- * current schemaVersion. Currently a no-op — first migration lands
- * with schemaVersion 2. */
+ * current schemaVersion.
+ *
+ * v1 → v2: the seven tables added in v2 are absent from v1 files. We
+ * normalise `data` so every array is present (defaulting missing ones
+ * to []), which makes the importer's bulkPut calls total. This is also
+ * defensive against a current-version file that's missing a key (e.g.
+ * hand-edited) — we always return a fully-populated `BackupData`. */
 export function migrateBackup(envelope: BackupEnvelope): BackupEnvelope {
-  if (envelope.schemaVersion === BACKUP_SCHEMA_VERSION) return envelope;
-  // Future: chain migration steps here based on schemaVersion.
-  return { ...envelope, schemaVersion: BACKUP_SCHEMA_VERSION };
+  const d = envelope.data as Partial<BackupData>;
+  const data: BackupData = {
+    profiles: d.profiles ?? [],
+    exercises: d.exercises ?? [],
+    routineTemplates: d.routineTemplates ?? [],
+    sessions: d.sessions ?? [],
+    setLogs: d.setLogs ?? [],
+    barbells: d.barbells ?? [],
+    plateInventory: d.plateInventory ?? [],
+    bodyweightLogs: d.bodyweightLogs ?? [],
+    prRecords: d.prRecords ?? [],
+    periodLogs: d.periodLogs ?? [],
+    exerciseRestPrefs: d.exerciseRestPrefs ?? [],
+    exerciseHoldPrefs: d.exerciseHoldPrefs ?? [],
+    favouriteRoutines: d.favouriteRoutines ?? [],
+    workoutPlans: d.workoutPlans ?? [],
+    scheduledSessions: d.scheduledSessions ?? [],
+    muscleVolumeOverrides: d.muscleVolumeOverrides ?? [],
+  };
+  return { ...envelope, schemaVersion: BACKUP_SCHEMA_VERSION, data };
 }

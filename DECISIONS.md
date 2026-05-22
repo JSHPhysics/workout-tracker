@@ -1864,6 +1864,49 @@ in-session backfill).
 
 ---
 
+## 2026-05-22 — Backup envelope v2: stop dropping seven tables on restore
+
+**Context.** Adding `exerciseHoldPrefs` surfaced that the backup envelope
+(`BackupData`, the user's *only* durable copy per CLAUDE.md) only ever
+included nine tables. Seven were silently omitted: `periodLogs`,
+`exerciseRestPrefs`, `exerciseHoldPrefs`, `favouriteRoutines`,
+`workoutPlans`, `scheduledSessions`, `muscleVolumeOverrides`. Owner's call:
+"back them up properly — there's no reason a user wouldn't want them."
+
+**Decision.** Bump `BACKUP_SCHEMA_VERSION` 1 → 2 and add all seven to the
+envelope, the profile-scoped export filter, and the importer (transaction
+table list, wipe-clear list, bulkPut, counts). `migrateBackup` now
+normalises `data` so a v1 file (lacking the seven) defaults each to `[]` —
+old backups still restore cleanly. `parseBackup` keeps its required-array
+set at the original nine, so v1 envelopes still validate.
+
+**Notably this fixes a real data-loss bug, not just prefs.** `periodLogs`
+is genuine cycle-tracking health data; before v2 it vanished on any
+wipe-and-restore. The rest are user-set preferences / plan state that a
+user would equally expect to survive a restore.
+
+**Alternatives considered.**
+- *Back up only the two pref tables.* Half-measure; leaves the period-log
+  data-loss bug and the other user state unprotected. Rejected per the
+  owner's "do it properly".
+- *Regenerate `scheduledSessions` from `workoutPlans` on import instead of
+  storing them.* They carry non-regenerable per-session state (bumped /
+  skipped / completed), so we store them.
+
+**Consequences.**
+- PR records remain recomputed-on-import (unchanged); the other tables are
+  restored verbatim by `bulkPut`. Synthetic-id rows (`${profileId}-…`)
+  round-trip without remap because the importer wipes-then-restores
+  wholesale and profile ids are preserved.
+- Verified an in-app export → wipe → restore round trip: envelope is v2
+  with all 16 keys; a 143 s hold pref survived intact.
+- Future per-table additions must extend `BackupData` + `migrateBackup` +
+  `buildBackup`/`scopeToProfile`/`importBackup` together, and bump the
+  schema version. (The `Record<keyof BackupData, number>` counts type makes
+  a forgotten importer table a compile error — keep it that way.)
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

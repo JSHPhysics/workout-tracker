@@ -42,6 +42,13 @@ export async function buildBackup(
       db.plateInventory,
       db.bodyweightLogs,
       db.prRecords,
+      db.periodLogs,
+      db.exerciseRestPrefs,
+      db.exerciseHoldPrefs,
+      db.favouriteRoutines,
+      db.workoutPlans,
+      db.scheduledSessions,
+      db.muscleVolumeOverrides,
     ],
     async () => {
       const profiles = await db.profiles.toArray();
@@ -53,6 +60,13 @@ export async function buildBackup(
       const plateInventory = await db.plateInventory.toArray();
       const bodyweightLogs = await db.bodyweightLogs.toArray();
       const prRecords = await db.prRecords.toArray();
+      const periodLogs = await db.periodLogs.toArray();
+      const exerciseRestPrefs = await db.exerciseRestPrefs.toArray();
+      const exerciseHoldPrefs = await db.exerciseHoldPrefs.toArray();
+      const favouriteRoutines = await db.favouriteRoutines.toArray();
+      const workoutPlans = await db.workoutPlans.toArray();
+      const scheduledSessions = await db.scheduledSessions.toArray();
+      const muscleVolumeOverrides = await db.muscleVolumeOverrides.toArray();
       return {
         profiles,
         exercises,
@@ -63,6 +77,13 @@ export async function buildBackup(
         plateInventory,
         bodyweightLogs,
         prRecords,
+        periodLogs,
+        exerciseRestPrefs,
+        exerciseHoldPrefs,
+        favouriteRoutines,
+        workoutPlans,
+        scheduledSessions,
+        muscleVolumeOverrides,
       };
     },
   );
@@ -103,6 +124,24 @@ function scopeToProfile(all: BackupData, profileId: string): BackupData {
       (l) => l.profileId === profileId,
     ),
     prRecords: all.prRecords.filter((r) => r.profileId === profileId),
+    // All v2 tables are profile-scoped — filter to the exported profile.
+    periodLogs: all.periodLogs.filter((l) => l.profileId === profileId),
+    exerciseRestPrefs: all.exerciseRestPrefs.filter(
+      (p) => p.profileId === profileId,
+    ),
+    exerciseHoldPrefs: all.exerciseHoldPrefs.filter(
+      (p) => p.profileId === profileId,
+    ),
+    favouriteRoutines: all.favouriteRoutines.filter(
+      (f) => f.profileId === profileId,
+    ),
+    workoutPlans: all.workoutPlans.filter((p) => p.profileId === profileId),
+    scheduledSessions: all.scheduledSessions.filter(
+      (s) => s.profileId === profileId,
+    ),
+    muscleVolumeOverrides: all.muscleVolumeOverrides.filter(
+      (o) => o.profileId === profileId,
+    ),
   };
 }
 
@@ -155,6 +194,13 @@ export async function importBackup(
       db.plateInventory,
       db.bodyweightLogs,
       db.prRecords,
+      db.periodLogs,
+      db.exerciseRestPrefs,
+      db.exerciseHoldPrefs,
+      db.favouriteRoutines,
+      db.workoutPlans,
+      db.scheduledSessions,
+      db.muscleVolumeOverrides,
     ],
     async () => {
       if (wipeFirst) {
@@ -168,10 +214,19 @@ export async function importBackup(
           db.profiles.clear(),
           db.exercises.clear(),
           db.routineTemplates.clear(),
+          db.periodLogs.clear(),
+          db.exerciseRestPrefs.clear(),
+          db.exerciseHoldPrefs.clear(),
+          db.favouriteRoutines.clear(),
+          db.workoutPlans.clear(),
+          db.scheduledSessions.clear(),
+          db.muscleVolumeOverrides.clear(),
         ]);
       }
 
-      // bulkPut is upsert-by-pk; works whether or not we wiped.
+      // bulkPut is upsert-by-pk; works whether or not we wiped. The
+      // arrays are guaranteed present by `migrateBackup` (v1 files get
+      // [] for the v2 tables), so no per-array guard is needed.
       await db.profiles.bulkPut(data.profiles);
       await db.exercises.bulkPut(data.exercises);
       await db.routineTemplates.bulkPut(data.routineTemplates);
@@ -180,6 +235,13 @@ export async function importBackup(
       await db.barbells.bulkPut(data.barbells);
       await db.plateInventory.bulkPut(data.plateInventory);
       await db.bodyweightLogs.bulkPut(data.bodyweightLogs);
+      await db.periodLogs.bulkPut(data.periodLogs);
+      await db.exerciseRestPrefs.bulkPut(data.exerciseRestPrefs);
+      await db.exerciseHoldPrefs.bulkPut(data.exerciseHoldPrefs);
+      await db.favouriteRoutines.bulkPut(data.favouriteRoutines);
+      await db.workoutPlans.bulkPut(data.workoutPlans);
+      await db.scheduledSessions.bulkPut(data.scheduledSessions);
+      await db.muscleVolumeOverrides.bulkPut(data.muscleVolumeOverrides);
 
       // PR recompute. The file's prRecords are intentionally discarded.
       const recomputed = recomputePRsFromSetLogs(data.setLogs);
@@ -229,6 +291,13 @@ export async function importBackup(
           plateInventory: data.plateInventory.length,
           bodyweightLogs: data.bodyweightLogs.length,
           prRecords: cleaned.length,
+          periodLogs: data.periodLogs.length,
+          exerciseRestPrefs: data.exerciseRestPrefs.length,
+          exerciseHoldPrefs: data.exerciseHoldPrefs.length,
+          favouriteRoutines: data.favouriteRoutines.length,
+          workoutPlans: data.workoutPlans.length,
+          scheduledSessions: data.scheduledSessions.length,
+          muscleVolumeOverrides: data.muscleVolumeOverrides.length,
         },
         prRecomputed: cleaned.length,
       };
