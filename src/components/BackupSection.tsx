@@ -14,6 +14,10 @@ import {
   saveBackup,
 } from '../lib/backupIo';
 import { parseBackup } from '../domain/backup-format';
+import {
+  requestPersistentStorage,
+  usePersistStatus,
+} from '../lib/persistentStorage';
 import type { Profile } from '../types';
 
 interface Props {
@@ -51,6 +55,17 @@ export function BackupSection({ profile }: Props) {
   const [busy, setBusy] = useState<'export' | 'import' | 'pick' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  // Storage-persistence grant. `persistNonce` bumps after a manual
+  // "Protect" tap so the hook re-reads the (possibly newly granted)
+  // status. A user-gesture request also tends to fare better with
+  // Chromium's grant heuristics than the silent boot attempt.
+  const [persistNonce, setPersistNonce] = useState(0);
+  const persistStatus = usePersistStatus(persistNonce);
+
+  const protectStorage = async () => {
+    await requestPersistentStorage();
+    setPersistNonce((n) => n + 1);
+  };
 
   // Refresh the auto-backup display whenever the profile changes.
   useEffect(() => {
@@ -214,6 +229,37 @@ export function BackupSection({ profile }: Props) {
             <span className="truncate text-xs tabular-nums text-fg">
               {autoFile}
             </span>
+          </div>
+        )}
+
+        {persistStatus && persistStatus !== 'unsupported' && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-soft px-3 py-2">
+            <div className="flex min-w-0 flex-col">
+              <span className="text-[0.65rem] uppercase tracking-[0.18em] text-fg-muted">
+                Storage protection
+              </span>
+              <span className="text-xs text-fg-muted">
+                {persistStatus === 'persisted'
+                  ? "On — the browser won't evict this app's data to reclaim space."
+                  : 'Best-effort — data may be evicted under storage pressure.'}
+              </span>
+            </div>
+            {persistStatus === 'persisted' ? (
+              <span
+                aria-label="Storage protection is on"
+                className="shrink-0 text-sm text-accent"
+              >
+                ✓
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={protectStorage}
+                className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg transition hover:border-line-strong disabled:opacity-50"
+              >
+                Protect
+              </button>
+            )}
           </div>
         )}
 

@@ -1907,6 +1907,35 @@ user would equally expect to survive a restore.
 
 ---
 
+## 2026-05-22 — Request persistent storage on boot
+
+**Context.** A user lost their whole profile without clearing anything. The
+v13→v14 migration was proven safe (reproduced), so the cause was the
+browser **evicting** the origin's IndexedDB to reclaim disk — the default
+"best-effort" storage policy allows this silently. The app had never asked
+to be exempted.
+
+**Decision.** Call `navigator.storage.persist()` on boot (fire-and-forget,
+idempotent — skips if already granted) to request "persistent" storage,
+which exempts the origin from automatic eviction under storage pressure.
+Surface the grant status in Settings → Backup ("Storage protection: on /
+best-effort") with a **Protect** button to re-request from a user gesture
+(Chromium's grant heuristics favour engaged gestures over a silent boot
+call). Logic lives in `src/lib/persistentStorage.ts`; never throws.
+
+**Alternatives / notes.**
+- *Rely on backups alone.* Backups are the durable copy, but persistence is
+  a cheap first line of defence that keeps the live DB from vanishing
+  between backups. Both, not either.
+- Grant is **not guaranteed** — Chromium decides from heuristics (site
+  engagement, bookmark, installed PWA, notification permission); Firefox may
+  prompt. So this reduces eviction risk, it doesn't eliminate it — the
+  backup nag stays. "Add to Home Screen" further improves the odds.
+- No prompt on Chromium (silent heuristic), so calling on every boot is
+  safe and non-annoying.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

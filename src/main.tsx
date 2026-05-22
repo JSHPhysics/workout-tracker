@@ -9,9 +9,23 @@ import {
   repairRetrospectiveSetTimestamps,
 } from './db/sessions';
 import { initTheme } from './state/theme';
+import { requestPersistentStorage } from './lib/persistentStorage';
 import './index.css';
 
 initTheme();
+
+// Ask the browser to protect our IndexedDB from automatic eviction under
+// storage pressure. Without this an origin is "best-effort" and the
+// browser may silently drop the user's whole local DB to reclaim space —
+// the JSON backup is the only other line of defence. Fire-and-forget;
+// idempotent (skips the request if already granted). Logs only the
+// non-ideal outcomes so a granted boot stays quiet.
+void requestPersistentStorage().then((status) => {
+  if (status !== 'persisted') {
+    // eslint-disable-next-line no-console
+    console.info(`Persistent storage not granted (${status}).`);
+  }
+});
 // Fire-and-forget. Subsequent useLiveQuery hooks pick up the rows as
 // soon as they land. If the load fails we surface to the console; the
 // app still renders (just with empty profile/routine lists).
