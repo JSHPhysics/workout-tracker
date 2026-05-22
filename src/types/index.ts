@@ -10,6 +10,7 @@ export type {
   EquipmentTag,
   Exercise,
   ExerciseCategory,
+  ExerciseHoldPref,
   ExerciseRestPref,
   FavouriteRoutine,
   MeasurementType,

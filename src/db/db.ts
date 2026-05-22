@@ -3,6 +3,7 @@ import type {
   Barbell,
   BodyweightLog,
   Exercise,
+  ExerciseHoldPref,
   ExerciseRestPref,
   FavouriteRoutine,
   MuscleVolumeOverride,
@@ -80,6 +81,7 @@ export type WorkoutDB = Dexie & {
   prRecords: EntityTable<PRRecord, 'id'>;
   periodLogs: EntityTable<PeriodLog, 'id'>;
   exerciseRestPrefs: EntityTable<ExerciseRestPref, 'id'>;
+  exerciseHoldPrefs: EntityTable<ExerciseHoldPref, 'id'>;
   favouriteRoutines: EntityTable<FavouriteRoutine, 'id'>;
   workoutPlans: EntityTable<WorkoutPlan, 'id'>;
   scheduledSessions: EntityTable<ScheduledSession, 'id'>;
@@ -495,6 +497,36 @@ db.version(13).stores({
     '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
   periodLogs: '&id, profileId, startDate, [profileId+startDate]',
   exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+  favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
+  workoutPlans: '&id, profileId, routineId, status, [profileId+status]',
+  scheduledSessions:
+    '&id, profileId, planId, plannedDate, status, [profileId+plannedDate], [profileId+status]',
+  muscleVolumeOverrides:
+    '&id, profileId, exerciseId, [profileId+exerciseId]',
+});
+
+// v14 — Per-(profile, exercise) hold-timer memory. Same synthetic-id
+// pattern as exerciseRestPrefs, but a separate table so adjusting an
+// active hold (a stretch, plank, dead hang started from a time-based
+// set row) never rewrites that exercise's after-set rest preference.
+// No upgrader — additive. Not included in the backup envelope, matching
+// how exerciseRestPrefs and the other convenience/derived tables are
+// treated (recoverable convenience state, not source-of-truth data).
+db.version(14).stores({
+  profiles: '&id, name',
+  exercises: '&id, name, profileId, isCustom, category',
+  routineTemplates: '&id, name, profileId, isSeed',
+  sessions: '&id, profileId, startedAt, completedAt, [profileId+startedAt]',
+  setLogs:
+    '&id, sessionId, exerciseId, [sessionId+blockOrder+exerciseOrder+setNumber], completedAt',
+  barbells: '&id, profileId, [profileId+isDefault]',
+  plateInventory: '&id, profileId',
+  bodyweightLogs: '&id, profileId, date, [profileId+date]',
+  prRecords:
+    '&id, profileId, exerciseId, type, achievedAt, [profileId+exerciseId+type]',
+  periodLogs: '&id, profileId, startDate, [profileId+startDate]',
+  exerciseRestPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
+  exerciseHoldPrefs: '&id, profileId, exerciseId, [profileId+exerciseId]',
   favouriteRoutines: '&id, profileId, routineId, [profileId+routineId]',
   workoutPlans: '&id, profileId, routineId, status, [profileId+status]',
   scheduledSessions:

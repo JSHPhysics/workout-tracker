@@ -15,6 +15,7 @@ import {
 } from '../db/sessions';
 import { useMostRecentSetMetric, useSessionSetLogs } from '../db/setLogs';
 import { useExerciseRestPref } from '../db/exerciseRestPrefs';
+import { useExerciseHoldPref } from '../db/exerciseHoldPrefs';
 import { useExerciseMap } from '../db/exercises';
 import { useDefaultBarbell, usePlateInventory } from '../db/equipment';
 import { useLatestBodyweight } from '../db/bodyweight';
@@ -711,6 +712,11 @@ function ExerciseGroup({
   // Per-exercise rest memory — saved by the rest bar's +/- 30s
   // controls. Highest-priority entry in the resolution chain below.
   const restPref = useExerciseRestPref(profileId, exercise?.id);
+  // Per-exercise hold memory — saved when the user starts / adjusts a
+  // hold timer on a time-based exercise. Top-priority duration default
+  // below, just above the cross-session prior, so the remembered hold
+  // length carries across sessions for stretches / planks / dead hangs.
+  const holdPref = useExerciseHoldPref(profileId, exercise?.id);
   if (!exercise) {
     return (
       <div className="text-sm text-fg-muted">
@@ -851,6 +857,19 @@ function ExerciseGroup({
       planned.targetWeight > 0
     ) {
       weight = planned.targetWeight;
+    }
+    // Per-exercise hold memory — for time-based exercises only. Sits
+    // above the cross-session prior so the user's remembered hold
+    // length (set by starting / adjusting the hold timer) wins over
+    // "whatever I happened to log last session", but below the
+    // in-session backfill above (set 2 of a stretch should follow what
+    // you just did on set 1 this session, if anything).
+    if (
+      durationSeconds === undefined &&
+      exercise.measurementType === 'time_seconds' &&
+      positive(holdPref) !== null
+    ) {
+      durationSeconds = holdPref as number;
     }
     // Cross-session fallback (only when in-session AND target yielded
     // nothing for that metric).

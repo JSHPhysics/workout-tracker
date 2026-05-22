@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { setPreferredRest } from '../db/exerciseRestPrefs';
+import { setPreferredHold } from '../db/exerciseHoldPrefs';
 
 // Rest timer state. Wall-clock based — `deadline` is `Date.now() +
 // remaining ms`, never decremented by a tick. The component reads
@@ -69,13 +70,23 @@ const initial: State = {
   kind: 'rest',
 };
 
-/** Persist the new total to per-exercise prefs. Fire-and-forget — the
+/** Persist the new total to per-exercise prefs, routed by kind so a
+ * hold adjustment writes the hold memory and a rest adjustment writes
+ * the rest memory — never crossing the streams. Fire-and-forget; the
  * timer keeps running regardless of whether the write resolves. */
-function persistTotal(context: RestTimerContext | null, totalMs: number) {
+function persistTotal(
+  context: RestTimerContext | null,
+  kind: RestTimerKind,
+  totalMs: number,
+) {
   if (!context) return;
   const seconds = Math.round(totalMs / 1000);
   if (seconds <= 0) return;
-  void setPreferredRest(context.profileId, context.exerciseId, seconds);
+  if (kind === 'hold') {
+    void setPreferredHold(context.profileId, context.exerciseId, seconds);
+  } else {
+    void setPreferredRest(context.profileId, context.exerciseId, seconds);
+  }
 }
 
 export const useRestTimer = create<State & Actions>((set, get) => ({
@@ -100,12 +111,12 @@ export const useRestTimer = create<State & Actions>((set, get) => ({
       const newTotal = Math.max(0, s.totalMs + addMs);
       const newDeadline = Math.max(Date.now(), s.deadline + addMs);
       set({ deadline: newDeadline, totalMs: newTotal });
-      persistTotal(s.context, newTotal);
+      persistTotal(s.context, s.kind, newTotal);
     } else if (s.status === 'paused' && s.pausedRemaining !== null) {
       const newTotal = Math.max(0, s.totalMs + addMs);
       const newRemaining = Math.max(0, s.pausedRemaining + addMs);
       set({ pausedRemaining: newRemaining, totalMs: newTotal });
-      persistTotal(s.context, newTotal);
+      persistTotal(s.context, s.kind, newTotal);
     } else if (s.status === 'ended') {
       // Allow "+30s" after a finished cue to re-arm the timer.
       // Negative deltas in this state are no-ops — there's nothing to

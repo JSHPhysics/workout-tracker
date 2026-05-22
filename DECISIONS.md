@@ -1820,6 +1820,50 @@ observes the active profile via `useProfile()` and re-applies
 
 ---
 
+## 2026-05-22 — Per-stretch hold timer + dedicated hold-duration memory
+
+**Context.** Users on the stretching routines wanted to start a countdown
+for the length of a stretch and get a beep/vibrate when it's up. Stretches
+(and planks, dead hangs) are `time_seconds` exercises; the set row only let
+you type a duration and tick — no live timer. A first cut added a "Hold"
+button on time-based set rows that reuses the rest-timer store/bar
+(wall-clock countdown, end chime, vibration, wake lock) with a new
+`kind: 'hold'` so the bar reads "Holding"/"Hold done". Follow-up ask: make
+the hold length persist per exercise so it isn't re-set every session.
+
+**Decision.** Persist hold length in a **new, separate** Dexie table
+`exerciseHoldPrefs` (schema **v14**), mirroring `exerciseRestPrefs`
+(synthetic `${profileId}-${exerciseId}` id, upsert-by-put). The running
+hold's +/- 30s and the initial start both write here, routed by the timer
+store's `kind`. `Session.tsx` reads it back as the top-priority duration
+default for `time_seconds` exercises (above the cross-session prior, below
+in-session backfill).
+
+**Alternatives considered.**
+- *Reuse `exerciseRestPrefs` (the existing rest "context").* One-line change,
+  but it would make adjusting a stretch hold silently rewrite that
+  exercise's **after-set rest** — exactly the per-exercise rest "drift"
+  bug class that bit Hayley (`d70e664`). Rejected.
+- *Rely on set-log inheritance only* (duration already inherits from the
+  last logged set). Doesn't capture a hold the user starts/adjusts but
+  doesn't log, and a stale bar adjustment couldn't persist at all.
+
+**Consequences.**
+- Hold memory and rest memory never cross; verified that bumping a hold to
+  143s leaves the after-set rest at its 15s default.
+- Not added to the backup envelope — matches how `exerciseRestPrefs` and the
+  other convenience/derived tables are treated (recoverable convenience
+  state, recomputable from behaviour, not source-of-truth). If we later
+  decide per-exercise prefs *should* travel with backups, do them all at
+  once and bump `BACKUP_SCHEMA_VERSION`.
+- Added a hold-pref step to `consolidateAliasedExercises` so exercise-id
+  merges remap holds the same way they remap rest prefs.
+- No reset UI yet; `clearAllPreferredHold` exists for a future Settings
+  action (mirrors `clearAllPreferredRest`). The stepper is directly
+  editable and re-persists on the next start, so drift is self-healing.
+
+---
+
 ## Open questions (no decision yet)
 
 These are flagged so they don't get lost. Resolve before the milestone in

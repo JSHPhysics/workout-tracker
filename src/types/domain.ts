@@ -519,6 +519,25 @@ export interface ExerciseRestPref {
   updatedAt: string;
 }
 
+// --- Per-exercise hold preferences ------------------------------------------
+
+/** Persisted hold-timer length for a specific (profile, exercise) pair.
+ * Distinct from `ExerciseRestPref`: this is the duration of an *active*
+ * hold (a stretch, plank, dead hang) the user starts from a time-based
+ * set row, NOT the after-set rest. Kept in its own table so adjusting a
+ * hold never rewrites the exercise's rest memory (and vice versa).
+ * Written when the user starts a hold and when they +/- 30s the running
+ * hold; recalled as the top-priority duration default next time. */
+export interface ExerciseHoldPref {
+  /** Synthetic id of `${profileId}-${exerciseId}` — put-as-upsert. */
+  id: string;
+  profileId: string;
+  exerciseId: string;
+  holdSeconds: number;
+  /** ISO 8601. Informational, mirrors ExerciseRestPref. */
+  updatedAt: string;
+}
+
 // --- Bodyweight log ---------------------------------------------------------
 
 export interface BodyweightLog {

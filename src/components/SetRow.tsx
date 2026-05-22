@@ -8,6 +8,7 @@ import {
   updateSetType,
 } from '../db/setLogs';
 import { useRestTimer } from '../state/restTimer';
+import { setPreferredHold } from '../db/exerciseHoldPrefs';
 import { primeAudio } from '../lib/cue';
 import { NumberStepper } from './NumberStepper';
 import { PRBadges } from './PRBadges';
@@ -196,12 +197,21 @@ export function SetRow({
    * exercise (stretch, plank, dead hang). Reuses the rest-timer bar's
    * machinery — wall-clock countdown, end chime, vibration, wake lock —
    * but with `kind: 'hold'` so the bar reads "Holding"/"Hold done".
-   * No persistence context: a hold isn't a per-exercise rest pref, so
-   * any +/- 30s adjustment is a one-off and must not rewrite defaults. */
+   *
+   * Passes a (profile, exercise) context so the running hold's +/- 30s
+   * adjustments persist — routed by kind to the *hold* memory, never
+   * the rest memory. We also persist the chosen length up front, so
+   * setting the stepper and starting a hold is enough to make that
+   * duration the remembered default next time (no bar nudge required).
+   * The parent reads this back as the top-priority duration default. */
   const startHold = () => {
     if (blockSkipped || duration <= 0) return;
     primeAudio();
-    startRest(duration, `Hold · ${exercise.name}`, undefined, 'hold');
+    void setPreferredHold(profileId, exercise.id, duration);
+    startRest(duration, `Hold · ${exercise.name}`, {
+      profileId,
+      exerciseId: exercise.id,
+    }, 'hold');
   };
 
   const tick = async () => {

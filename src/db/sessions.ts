@@ -393,6 +393,7 @@ const REPAIR_LOOKAHEAD_MS = 60 * 60 * 1000;
  *   - muscleVolumeOverrides — id collisions handled by keeping the
  *     canonical row; the aliased row is dropped
  *   - exerciseRestPrefs — same collision handling
+ *   - exerciseHoldPrefs — same collision handling
  *
  * Returns the number of rows touched (for telemetry / console). */
 export async function consolidateAliasedExercises(): Promise<number> {
@@ -521,6 +522,29 @@ export async function consolidateAliasedExercises(): Promise<number> {
         profileId: p.profileId,
         exerciseId: canonical,
         restSeconds: p.restSeconds,
+        updatedAt: p.updatedAt,
+      });
+    }
+    touched += 1;
+  }
+
+  // 7. exerciseHoldPrefs — same per-pair collision handling as rest.
+  const aliasedHold = await db.exerciseHoldPrefs
+    .filter((p) => aliasIds.has(p.exerciseId))
+    .toArray();
+  for (const p of aliasedHold) {
+    const canonical = EXERCISE_ALIASES[p.exerciseId]!;
+    const newPrimaryKey = `${p.profileId}-${canonical}`;
+    const existing = await db.exerciseHoldPrefs.get(newPrimaryKey);
+    if (existing) {
+      await db.exerciseHoldPrefs.delete(p.id);
+    } else {
+      await db.exerciseHoldPrefs.delete(p.id);
+      await db.exerciseHoldPrefs.put({
+        id: newPrimaryKey,
+        profileId: p.profileId,
+        exerciseId: canonical,
+        holdSeconds: p.holdSeconds,
         updatedAt: p.updatedAt,
       });
     }
